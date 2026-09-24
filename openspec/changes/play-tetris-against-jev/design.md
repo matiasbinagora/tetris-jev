@@ -31,6 +31,8 @@ Use deterministic rotation with a documented Super Rotation System kick table fo
 
 Calculate aggregate height, holes, and bumpiness over the 20 visible rows only; the two hidden spawn rows are excluded from these metrics. A piece that locks with any cell in a hidden row tops out, and a board also tops out when its next piece cannot occupy the spawn position.
 
+Enumerate Jev's placements with a breadth-first search from its active piece. Expand collision-legal left, right, down, clockwise-rotation, and counterclockwise-rotation transitions in that fixed order, using the same movement and SRS helpers as gameplay. A reachable state is a landing when it cannot move down. Deduplicate identical occupied-cell footprints, assign a stable identifier to each footprint, and simulate every candidate with the pure lock-and-clear operation. Candidate order and identifiers must be repeatable for the same board and piece.
+
 ### Next.js App Router with a same-origin Jev route
 
 Render the interactive match as a client-side game surface. Put the Jev proxy in a Next.js Route Handler on the Node.js runtime, under the same origin as the page. The browser sends the current Jev board, piece, and legal landing candidates; the route validates the data and calls Jev's decision endpoint once with a typed `choice` question. The API returns a chosen option and per-option probabilities; the route maps the result back to the candidate data and returns safe usage/latency metadata when available.
