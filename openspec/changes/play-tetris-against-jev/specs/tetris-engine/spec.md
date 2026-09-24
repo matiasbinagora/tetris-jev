@@ -49,3 +49,10 @@ The game SHALL remove every fully occupied row after a piece locks and shift row
 #### Scenario: Detect top-out above the visible board
 - **WHEN** a piece locks with one or more cells above the visible board
 - **THEN** that board enters the top-out state
+
+### Requirement: Visible-board metrics
+The engine SHALL calculate column heights, aggregate height, holes, and bumpiness over the 20 visible rows only. The two hidden spawn rows SHALL NOT contribute to these metrics. Aggregate height SHALL be the sum of the ten column heights; a hole SHALL be an empty visible cell below an occupied cell in the same column; bumpiness SHALL be the sum of absolute height differences between adjacent columns.
+
+#### Scenario: Ignore hidden spawn rows in metrics
+- **WHEN** hidden rows contain occupied cells but the visible board is empty
+- **THEN** aggregate height, holes, and bumpiness are all zero

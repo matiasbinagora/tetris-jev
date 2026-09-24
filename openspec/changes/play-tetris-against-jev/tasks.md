@@ -8,7 +8,7 @@
 ## 2. Deterministic Tetris engine
 
 - [x] 2.1 Implement the 10 by 20 board with hidden spawn rows, seven standard tetrominoes, deterministic spawn positions, collision checks, and the documented Super Rotation System kick order; verify unit tests cover every piece orientation, wall/floor collisions, and blocked rotations.
-- [ ] 2.2 Implement gravity steps, soft/hard drop, locking, simultaneous line clearing, board metrics, and spawn/lock top-out; verify unit tests cover normal placement, multiple lines, holes, height, bumpiness, and top-out.
+- [x] 2.2 Implement gravity steps, soft/hard drop, locking, simultaneous line clearing, board metrics, and spawn/lock top-out; verify unit tests cover normal placement, multiple lines, holes, height, bumpiness, and top-out.
 - [ ] 2.3 Implement deterministic legal landing enumeration and board simulation for every candidate; verify tests prove each returned candidate is legal and its simulated effects match applying that placement to a copied board.
 
 ## 3. Shared match lifecycle
