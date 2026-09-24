@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation and deterministic Tetris engine are in place, including movement, rotation, gravity, drops, locking, line clearing, board metrics, top-out detection, and legal placement enumeration with board simulation. The home page is still a placeholder; the synchronized match, Jev decision route, and playable interface are not implemented yet.
+The Next.js App Router foundation, deterministic Tetris engine, and pure shared-match core are implemented. The core gives two independent boards the same seeded seven-bag sequence and advances them through shared 700 ms gravity ticks and a lock barrier. The home page is still a placeholder; start/pause/resume/restart controls, automatic timer lifecycle, the Jev decision route, and the playable interface remain pending.
 
-OpenSpec implementation progress is **5 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, and 2.3). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **6 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, and 3.1). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -30,7 +30,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | --- | --- |
 | `npm run dev` | Start the Next.js development server |
 | `npm run lint` | Run ESLint |
-| `npm test` | Run the Vitest unit suite for the Tetris engine |
+| `npm test` | Run the Vitest unit suites for the Tetris engine and shared match core |
 | `npm run typecheck` | Run TypeScript without emitting files |
 | `npm run build` | Build the production application |
 | `npm start` | Serve the production build |
@@ -104,6 +104,12 @@ Board metrics are calculated from the 20 visible rows. Column height counts visi
 Jev placement candidates are enumerated with a breadth-first search from its active piece. The search expands legal left, right, down, clockwise-rotation, and counterclockwise-rotation moves in that order, using the same collision and SRS rules as gameplay. A candidate is a reachable pose that cannot descend further; identical occupied-cell footprints appear once and receive stable IDs. Each candidate includes the simulated locked board, cleared-line count, top-out result, and resulting board metrics. The source board is never mutated.
 
 The engine tests cover all 28 piece/orientation combinations, deterministic spawn positions, wall and floor boundaries, occupied-cell collisions, both kick tables, gravity, soft/hard drops, normal locking, simultaneous multi-line clearing, metrics, spawn/lock top-out, and candidate legality and simulation.
+
+## Shared match core
+
+The pure match state and transitions live in [`src/game/match.ts`](src/game/match.ts). `createMatchCore(seed)` normalizes a finite integer seed, shuffles a seven-bag with a serializable xorshift32 generator, and spawns the same current piece on separate human and Jev boards. The complete match core can be JSON-serialized and restored without losing future piece draws.
+
+`applySharedGravityTick(state)` models one shared 700 ms gravity step: each active board moves or locks independently, while a player who has already locked keeps the same player state as the other board continues. `advanceMatchRound(state)` preserves the current state until both players lock, then spawns one shared next piece on both boards and rolls over to a new seven-bag when needed. A spawn failure tops out only the affected player. These functions are pure transitions; browser timers, start/pause/resume/restart controls, and win/draw resolution are part of OpenSpec task 3.2.
 
 ## Jev API and Vercel
 
