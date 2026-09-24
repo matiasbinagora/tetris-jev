@@ -19,6 +19,7 @@
     "@types/node": "26.6.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "agents-cli": "https://codeload.github.com/matiasnjacob/agents-cli/tar.gz/refs/tags/v0.1.0",
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.6",
     "typescript": "5.9.3",
