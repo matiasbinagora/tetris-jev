@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation and development tooling are in place. The home page is still a placeholder; the game engine, synchronized match, Jev decision route, and playable interface are not implemented yet.
+The Next.js App Router foundation and development tooling are in place, as is the deterministic board, piece, movement, and rotation engine. The home page is still a placeholder; gravity, locking, the synchronized match, Jev decision route, and playable interface are not implemented yet.
 
-OpenSpec implementation progress is **2 of 19 tasks complete** (application foundation tasks 1.1 and 1.2). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **3 of 19 tasks complete** (tasks 1.1, 1.2, and 2.1). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -30,7 +30,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | --- | --- |
 | `npm run dev` | Start the Next.js development server |
 | `npm run lint` | Run ESLint |
-| `npm test` | Run Vitest; currently no tests have been added |
+| `npm test` | Run the Vitest unit suite for the Tetris engine |
 | `npm run typecheck` | Run TypeScript without emitting files |
 | `npm run build` | Build the production application |
 | `npm start` | Serve the production build |
@@ -62,6 +62,42 @@ These are the OpenSpec requirements; they describe the target behavior and are n
 - A desktop layout allocating 50% of the viewport area to the human board, 35% to Jev's board, and 15% to Jev's decision panel.
 - Jev chooses only from server-validated legal placements. If a request fails or times out, the match pauses and retries with the same decision state; there is no substitute player.
 - The match stays in the browser. The MVP has no accounts, database, persistence, multiplayer, or garbage attacks.
+
+## Tetris engine
+
+The pure rules module is [`src/game/engine.ts`](src/game/engine.ts). It stores each board as 22 rows of 10 cells: rows 0 and 1 are hidden spawn rows, and rows 2 through 21 are visible. Empty cells are `null`; occupied cells store the tetromino type.
+
+The seven pieces each have four explicit orientations. J, L, S, T, and Z use 3 by 3 orientation matrices; I and O use 4 by 4 matrices. Every piece spawns in orientation `0` at origin `(3, 0)`. Coordinates increase to the right and down. Movement and rotation helpers return a new piece when the move is legal and leave the input piece and board unchanged when it is blocked.
+
+Clockwise and counterclockwise turns test the following Super Rotation System offsets in order. State names are `0` (spawn), `R` (right), `2` (reverse), and `L` (left). Each pair is `(x, y)` in board coordinates, with positive `y` pointing down. `O` rotates in place with only `(0, 0)`.
+
+### J, L, S, T, Z kicks
+
+| Transition | Ordered offsets `(x, y)` |
+| --- | --- |
+| `0 → R` | `(0,0), (-1,0), (-1,-1), (0,2), (-1,2)` |
+| `R → 0` | `(0,0), (1,0), (1,1), (0,-2), (1,-2)` |
+| `R → 2` | `(0,0), (1,0), (1,1), (0,-2), (1,-2)` |
+| `2 → R` | `(0,0), (-1,0), (-1,-1), (0,2), (-1,2)` |
+| `2 → L` | `(0,0), (1,0), (1,-1), (0,2), (1,2)` |
+| `L → 2` | `(0,0), (-1,0), (-1,1), (0,-2), (-1,-2)` |
+| `L → 0` | `(0,0), (-1,0), (-1,1), (0,-2), (-1,-2)` |
+| `0 → L` | `(0,0), (1,0), (1,-1), (0,2), (1,2)` |
+
+### I-piece kicks
+
+| Transition | Ordered offsets `(x, y)` |
+| --- | --- |
+| `0 → R` | `(0,0), (-2,0), (1,0), (-2,1), (1,-2)` |
+| `R → 0` | `(0,0), (2,0), (-1,0), (2,-1), (-1,2)` |
+| `R → 2` | `(0,0), (-1,0), (2,0), (-1,-2), (2,1)` |
+| `2 → R` | `(0,0), (1,0), (-2,0), (1,2), (-2,-1)` |
+| `2 → L` | `(0,0), (2,0), (-1,0), (2,-1), (-1,2)` |
+| `L → 2` | `(0,0), (-2,0), (1,0), (-2,1), (1,-2)` |
+| `L → 0` | `(0,0), (1,0), (-2,0), (1,2), (-2,-1)` |
+| `0 → L` | `(0,0), (-1,0), (2,0), (-1,-2), (2,1)` |
+
+The engine tests cover all 28 piece/orientation combinations, deterministic spawn positions, wall and floor boundaries, occupied-cell collisions, both kick tables, and blocked rotations. Gravity, locking, line clearing, board metrics, and top-out are tracked as the next engine task (2.2).
 
 ## Jev API and Vercel
 
