@@ -1,4 +1,5 @@
 import {
+  applyGravityTick,
   createEmptyBoard,
   PIECE_TYPES,
   trySpawnPiece,
@@ -112,5 +113,32 @@ export function createMatchCore(seed: number): MatchCoreState {
     currentPiece,
     human: createPlayer(createEmptyBoard(), currentPiece),
     jev: createPlayer(createEmptyBoard(), currentPiece),
+  };
+}
+
+function tickMovingPlayer(player: MatchPlayerState): MatchPlayerState {
+  if (player.activePiece === null || player.lockedThisRound) {
+    return player;
+  }
+
+  const result = applyGravityTick(player.board, player.activePiece);
+  if (result.kind === 'moved') {
+    return { ...player, activePiece: result.piece };
+  }
+
+  return {
+    ...player,
+    board: result.result.board,
+    activePiece: null,
+    lockedThisRound: true,
+    topOut: result.result.topOut,
+  };
+}
+
+export function applySharedGravityTick(state: MatchCoreState): MatchCoreState {
+  return {
+    ...state,
+    human: tickMovingPlayer(state.human),
+    jev: tickMovingPlayer(state.jev),
   };
 }
