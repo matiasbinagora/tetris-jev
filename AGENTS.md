@@ -26,3 +26,13 @@ This folder contains the planning baseline for a desktop-first Next.js Tetris ma
 - Add or update unit tests for deterministic engine rules and candidate validation, route tests for Jev success/failure/secrets, and UI or end-to-end coverage for the match flow and keyboard controls as their implementation tasks require.
 - Validate the OpenSpec change with the repository's OpenSpec CLI before marking its planning or implementation work complete.
 - For Vercel work, use Preview first and verify the server route with Preview environment configuration before Production.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

@@ -1,0 +1,38 @@
+:root {
+  color-scheme: dark;
+  background: #101216;
+  color: #f2f4f8;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.starter-page {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.starter-page h1,
+.starter-page p {
+  margin: 0;
+}
+
+.starter-page p {
+  color: #aab1bd;
+}
