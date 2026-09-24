@@ -11,6 +11,7 @@ import {
   createSpawnPiece,
   calculateBoardMetrics,
   clearCompletedLines,
+  enumerateLegalLandingCandidates,
   getPieceCells,
   isValidPosition,
   lockPiece,
@@ -95,6 +96,10 @@ function rotateMatrixClockwise(matrix: readonly string[]): string[] {
 
 function cellKeys(cells: readonly { x: number; y: number }[]): string[] {
   return cells.map(({ x, y }) => `${x},${y}`);
+}
+
+function placementFootprint(piece: ActivePiece): string {
+  return cellKeys(getPieceCells(piece)).join(';');
 }
 
 function mutableEmptyBoard(): Cell[][] {
@@ -469,5 +474,101 @@ describe('gravity, drops, and locking', () => {
     expect(result.lockedPiece).toEqual(createSpawnPiece('O'));
     expect(result.board[1][4]).toBe('O');
     expect(result.board[2][4]).toBe('O');
+  });
+});
+
+describe('legal landing candidates', () => {
+  it('enumerates deterministic legal landings with a matching simulation for every piece', () => {
+    const board = createEmptyBoard();
+    const originalBoard = board.map((row) => [...row]);
+
+    for (const type of PIECE_TYPES) {
+      const initialPiece = createSpawnPiece(type);
+      const candidates = enumerateLegalLandingCandidates(board, initialPiece);
+      const repeatedCandidates = enumerateLegalLandingCandidates(board, initialPiece);
+
+      expect(candidates.length).toBeGreaterThan(0);
+      expect(candidates.length).toBeLessThanOrEqual(255);
+      expect(candidates.map(({ id }) => id)).toEqual(
+        repeatedCandidates.map(({ id }) => id),
+      );
+      expect(new Set(candidates.map(({ id }) => id)).size).toBe(candidates.length);
+      expect(
+        new Set(candidates.map(({ lockedPiece }) => placementFootprint(lockedPiece)))
+          .size,
+      ).toBe(candidates.length);
+
+      for (const { id, ...simulation } of candidates) {
+        expect(id).toMatch(new RegExp(`^${type}:`));
+        expect(isValidPosition(board, simulation.lockedPiece)).toBe(true);
+        expect(
+          tryMovePiece(board, simulation.lockedPiece, 0, 1),
+        ).toEqual(simulation.lockedPiece);
+        expect(simulation).toEqual(lockPiece(board, simulation.lockedPiece));
+      }
+    }
+
+    expect(board).toEqual(originalBoard);
+  });
+
+  it('deduplicates rotations with the same occupied cells', () => {
+    const candidates = enumerateLegalLandingCandidates(
+      createEmptyBoard(),
+      createSpawnPiece('O'),
+    );
+
+    expect(candidates).toHaveLength(9);
+    expect(
+      new Set(candidates.map(({ lockedPiece }) => placementFootprint(lockedPiece)))
+        .size,
+    ).toBe(9);
+  });
+
+  it('does not enumerate geometric landings that cannot be reached through a filled row', () => {
+    const rows = mutableEmptyBoard();
+    rows[5].fill('J');
+    const board: Board = rows;
+    const candidates = enumerateLegalLandingCandidates(board, createSpawnPiece('T'));
+
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(
+      candidates.every((candidate) =>
+        getPieceCells(candidate.lockedPiece).every(({ y }) => y < 5),
+      ),
+    ).toBe(true);
+  });
+
+  it('includes the cleared board and resulting metrics in a multi-line simulation', () => {
+    const rows = mutableEmptyBoard();
+    for (const y of [20, 21]) {
+      for (let x = 0; x < BOARD_WIDTH; x += 1) {
+        if (x !== 4 && x !== 5) rows[y][x] = 'J';
+      }
+    }
+    rows[19][0] = 'Z';
+    const board: Board = rows;
+    const candidates = enumerateLegalLandingCandidates(board, createSpawnPiece('O'));
+    const twoLineClear = candidates.find(
+      ({ lockedPiece }) => lockedPiece.x === 3 && lockedPiece.rotation === 0,
+    );
+
+    expect(twoLineClear).toBeDefined();
+    if (!twoLineClear) {
+      throw new Error('Expected the reachable O placement to clear two lines.');
+    }
+
+    expect(twoLineClear.linesCleared).toBe(2);
+    expect(twoLineClear.board[21][0]).toBe('Z');
+    expect(twoLineClear.metrics).toEqual(calculateBoardMetrics(twoLineClear.board));
+    expect(board[20].every((cell) => cell === null)).toBe(false);
+  });
+
+  it('returns no candidates when the active piece cannot occupy its current position', () => {
+    const rows = mutableEmptyBoard();
+    rows[1][4] = 'J';
+
+    expect(
+      enumerateLegalLandingCandidates(rows, createSpawnPiece('T')),
+    ).toEqual([]);
   });
 });

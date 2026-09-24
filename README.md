@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation and deterministic Tetris engine are in place, including movement, rotation, gravity, drops, locking, line clearing, board metrics, and top-out detection. The home page is still a placeholder; the synchronized match, Jev decision route, and playable interface are not implemented yet.
+The Next.js App Router foundation and deterministic Tetris engine are in place, including movement, rotation, gravity, drops, locking, line clearing, board metrics, top-out detection, and legal placement enumeration with board simulation. The home page is still a placeholder; the synchronized match, Jev decision route, and playable interface are not implemented yet.
 
-OpenSpec implementation progress is **4 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, and 2.2). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **5 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, and 2.3). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -101,7 +101,9 @@ Gravity ticks move an active piece down by one cell or lock it when it cannot de
 
 Board metrics are calculated from the 20 visible rows. Column height counts visible cells from the highest occupied cell through the floor; aggregate height is the sum of column heights; holes are empty visible cells below an occupied cell in their column; bumpiness is the sum of adjacent column-height differences. The hidden spawn rows do not contribute to these metrics.
 
-The engine tests cover all 28 piece/orientation combinations, deterministic spawn positions, wall and floor boundaries, occupied-cell collisions, both kick tables, gravity, soft/hard drops, normal locking, simultaneous multi-line clearing, metrics, and spawn/lock top-out. Legal landing enumeration and candidate simulation remain for task 2.3.
+Jev placement candidates are enumerated with a breadth-first search from its active piece. The search expands legal left, right, down, clockwise-rotation, and counterclockwise-rotation moves in that order, using the same collision and SRS rules as gameplay. A candidate is a reachable pose that cannot descend further; identical occupied-cell footprints appear once and receive stable IDs. Each candidate includes the simulated locked board, cleared-line count, top-out result, and resulting board metrics. The source board is never mutated.
+
+The engine tests cover all 28 piece/orientation combinations, deterministic spawn positions, wall and floor boundaries, occupied-cell collisions, both kick tables, gravity, soft/hard drops, normal locking, simultaneous multi-line clearing, metrics, spawn/lock top-out, and candidate legality and simulation.
 
 ## Jev API and Vercel
 

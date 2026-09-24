@@ -9,6 +9,8 @@ Lets Jev choose a legal Tetris landing through the TypeSafe decision API while p
 ### Requirement: Make a typed Jev placement decision
 For each Jev piece, the system SHALL enumerate the legal final placements from Jev's board and send the board, piece, and candidate placements to the Jev decision API as one typed `choice` decision. The submitted choice SHALL contain no more than 255 candidates. The system SHALL apply only a returned candidate identifier that matches one of the submitted legal placements. It SHALL NOT use a local heuristic or another model to choose a placement.
 
+The engine SHALL include only landing footprints reachable from the active piece through collision-legal left, right, down, and SRS rotation transitions. It SHALL represent each distinct occupied-cell footprint once, assign it a stable identifier, and simulate its locked board, line clears, top-out, and board metrics without mutating the source board.
+
 #### Scenario: Jev returns a legal choice
 - **WHEN** the Jev API returns a submitted candidate identifier
 - **THEN** the system applies that placement to Jev's board and records the choice probabilities returned for the submitted candidates

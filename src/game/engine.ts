@@ -45,6 +45,10 @@ export interface HardDropResult extends LockedBoardResult {
   dropDistance: number;
 }
 
+export interface LandingCandidate extends LockedBoardResult {
+  id: string;
+}
+
 export type SpawnResult =
   | { kind: 'spawned'; piece: ActivePiece }
   | { kind: 'top-out'; piece: null };
@@ -381,6 +385,67 @@ export function calculateBoardMetrics(board: Board): BoardMetrics {
     .reduce((sum, height, index) => sum + Math.abs(height - columnHeights[index]), 0);
 
   return { columnHeights, aggregateHeight, holes, bumpiness };
+}
+
+export function enumerateLegalLandingCandidates(
+  board: Board,
+  piece: ActivePiece,
+): LandingCandidate[] {
+  assertBoardDimensions(board);
+  if (!isValidPosition(board, piece)) {
+    return [];
+  }
+
+  const states = [{ ...piece }];
+  const visited = new Set([getActivePoseKey(piece)]);
+  const candidates = new Map<string, LandingCandidate>();
+
+  for (let index = 0; index < states.length; index += 1) {
+    const current = states[index];
+    const down = tryMovePiece(board, current, 0, 1);
+
+    if (down === current) {
+      const footprint = getPlacementFootprint(current);
+      if (!candidates.has(footprint)) {
+        candidates.set(footprint, {
+          ...lockPiece(board, current),
+          id: `${current.type}:${footprint}`,
+        });
+      }
+    }
+
+    const nextStates = [
+      tryMovePiece(board, current, -1, 0),
+      tryMovePiece(board, current, 1, 0),
+      down,
+      tryRotatePiece(board, current, 'clockwise'),
+      tryRotatePiece(board, current, 'counterclockwise'),
+    ];
+
+    for (const next of nextStates) {
+      if (next === current) {
+        continue;
+      }
+
+      const key = getActivePoseKey(next);
+      if (!visited.has(key)) {
+        visited.add(key);
+        states.push(next);
+      }
+    }
+  }
+
+  return [...candidates.values()];
+}
+
+function getActivePoseKey(piece: ActivePiece): string {
+  return `${piece.rotation}:${piece.x}:${piece.y}`;
+}
+
+function getPlacementFootprint(piece: ActivePiece): string {
+  return getPieceCells(piece)
+    .map(({ x, y }) => `${x},${y}`)
+    .join(';');
 }
 
 function assertBoardDimensions(board: Board): void {
