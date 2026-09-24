@@ -9,8 +9,15 @@ import {
   VISIBLE_BOARD_HEIGHT,
   createEmptyBoard,
   createSpawnPiece,
+  calculateBoardMetrics,
+  clearCompletedLines,
   getPieceCells,
   isValidPosition,
+  lockPiece,
+  applyGravityTick,
+  hardDropPiece,
+  softDropPiece,
+  trySpawnPiece,
   tryMovePiece,
   tryRotatePiece,
   type ActivePiece,
@@ -305,5 +312,162 @@ describe('SRS rotation', () => {
       expect(counterclockwise.x).toBe(initial.x);
       expect(counterclockwise.y).toBe(initial.y);
     }
+  });
+});
+
+describe('gravity, drops, and locking', () => {
+  it('moves one row on a gravity tick when the destination is legal', () => {
+    const board = createEmptyBoard();
+    const piece = createSpawnPiece('T');
+
+    expect(applyGravityTick(board, piece)).toEqual({
+      kind: 'moved',
+      piece: { ...piece, y: 1 },
+    });
+  });
+
+  it('locks on a gravity tick when the piece cannot move down', () => {
+    const board = createEmptyBoard();
+    const piece: ActivePiece = { type: 'T', rotation: 0, x: 3, y: 20 };
+
+    expect(isValidPosition(board, piece)).toBe(true);
+    expect(applyGravityTick(board, piece)).toMatchObject({
+      kind: 'locked',
+      result: {
+        lockedPiece: piece,
+        linesCleared: 0,
+        topOut: false,
+      },
+    });
+    expect(board.flat().every((cell) => cell === null)).toBe(true);
+  });
+
+  it('soft-drops by one cell without locking or changing the board', () => {
+    const board = createEmptyBoard();
+    const piece = createSpawnPiece('I');
+
+    expect(softDropPiece(board, piece)).toEqual({ ...piece, y: 1 });
+    expect(board.flat().every((cell) => cell === null)).toBe(true);
+  });
+
+  it('leaves a soft-dropped piece active when a settled cell blocks it', () => {
+    const rows = mutableEmptyBoard();
+    rows[2][4] = 'J';
+    const board: Board = rows;
+    const piece = createSpawnPiece('T');
+
+    expect(softDropPiece(board, piece)).toBe(piece);
+    expect(board[2][4]).toBe('J');
+  });
+
+  it('hard-drops to the lowest legal position and locks immediately', () => {
+    const board = createEmptyBoard();
+    const piece = createSpawnPiece('T');
+    const result = hardDropPiece(board, piece);
+
+    expect(result.dropDistance).toBe(20);
+    expect(result.lockedPiece).toEqual({ ...piece, y: 20 });
+    expect(result.board[20].filter((cell) => cell === 'T')).toHaveLength(1);
+    expect(result.board[21].filter((cell) => cell === 'T')).toHaveLength(3);
+    expect(result.linesCleared).toBe(0);
+    expect(result.topOut).toBe(false);
+    expect(board.flat().every((cell) => cell === null)).toBe(true);
+  });
+
+  it('hard-drops onto the row immediately above a settled obstacle', () => {
+    const rows = mutableEmptyBoard();
+    rows[21][4] = 'L';
+    const board: Board = rows;
+    const result = hardDropPiece(board, createSpawnPiece('I'));
+
+    expect(result.lockedPiece).toEqual({
+      ...createSpawnPiece('I'),
+      y: 19,
+    });
+    expect(result.board[20].slice(3, 7)).toEqual(['I', 'I', 'I', 'I']);
+    expect(result.board[21][4]).toBe('L');
+    expect(result.topOut).toBe(false);
+  });
+
+  it('clears multiple completed rows simultaneously after a lock', () => {
+    const rows = mutableEmptyBoard();
+    for (const y of [20, 21]) {
+      for (let x = 0; x < BOARD_WIDTH; x += 1) {
+        if (x !== 4 && x !== 5) rows[y][x] = 'J';
+      }
+    }
+    rows[19][0] = 'Z';
+    const board: Board = rows;
+    const result = hardDropPiece(board, createSpawnPiece('O'));
+
+    expect(result.linesCleared).toBe(2);
+    expect(result.board[21][0]).toBe('Z');
+    expect(result.board[20].every((cell) => cell === null)).toBe(true);
+    expect(result.board[19].every((cell) => cell === null)).toBe(true);
+    expect(board[20].every((cell) => cell !== null)).toBe(false);
+  });
+
+  it('clears every full row together and keeps other rows in order', () => {
+    const rows = mutableEmptyBoard();
+    rows[1][0] = 'I';
+    rows[5][3] = 'T';
+    rows[20].fill('J');
+    rows[21].fill('L');
+    const board: Board = rows;
+    const result = clearCompletedLines(board);
+
+    expect(result.linesCleared).toBe(2);
+    expect(result.board[0].every((cell) => cell === null)).toBe(true);
+    expect(result.board[1].every((cell) => cell === null)).toBe(true);
+    expect(result.board[3][0]).toBe('I');
+    expect(result.board[7][3]).toBe('T');
+    expect(result.board[21].every((cell) => cell === null)).toBe(true);
+    expect(board[20].every((cell) => cell === 'J')).toBe(true);
+  });
+
+  it('reports visible heights, holes, and bumpiness while ignoring hidden cells', () => {
+    const rows = mutableEmptyBoard();
+    rows[0][0] = 'I';
+    rows[18][0] = 'T';
+    rows[21][0] = 'T';
+    rows[20][1] = 'O';
+    rows[21][1] = 'O';
+
+    expect(calculateBoardMetrics(rows)).toEqual({
+      columnHeights: [4, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+      aggregateHeight: 6,
+      holes: 2,
+      bumpiness: 4,
+    });
+  });
+
+  it('reports zero metrics for an empty board', () => {
+    expect(calculateBoardMetrics(createEmptyBoard())).toEqual({
+      columnHeights: Array(BOARD_WIDTH).fill(0),
+      aggregateHeight: 0,
+      holes: 0,
+      bumpiness: 0,
+    });
+  });
+
+  it('detects spawn top-out when the spawn cells are occupied', () => {
+    const rows = mutableEmptyBoard();
+    rows[1][4] = 'J';
+
+    expect(trySpawnPiece(rows, 'O')).toEqual({ kind: 'top-out', piece: null });
+    expect(trySpawnPiece(createEmptyBoard(), 'O')).toEqual({
+      kind: 'spawned',
+      piece: createSpawnPiece('O'),
+    });
+  });
+
+  it('detects lock top-out when a locked piece occupies a hidden row', () => {
+    const board = createEmptyBoard();
+    const result = lockPiece(board, createSpawnPiece('O'));
+
+    expect(result.topOut).toBe(true);
+    expect(result.lockedPiece).toEqual(createSpawnPiece('O'));
+    expect(result.board[1][4]).toBe('O');
+    expect(result.board[2][4]).toBe('O');
   });
 });
