@@ -43,6 +43,12 @@ Export the shared gravity interval as `700` milliseconds. A pure match gravity t
 
 Tests cover repeatable sequences for the same seed, one of each piece per bag, the shared piece on both boards in each round, board independence, immutable tick transitions, gravity movement on active boards, stability of an already locked board, and the next-round lock barrier. The match module contains no browser timer, UI state, persistence, or server-owned match state; the UI or lifecycle layer will schedule the exported 700 ms interval later.
 
+### Match session lifecycle for task 3.2
+
+Wrap `MatchCoreState` in a serializable `MatchSessionState` with `ready`, `playing`, `paused`, and `finished` phases plus a nullable win/draw result. Creating a session builds its seeded core in `ready`; start changes only the phase. Pause and resume change only the phase and preserve the core exactly. Restart accepts a fresh seed from its caller, resets the core and result, and starts the new match immediately in `playing`. Seed generation remains outside the pure game module.
+
+The lifecycle tick is a pure transition called by the shared clock. It does nothing unless the session is `playing`; otherwise it applies one shared core tick, resolves a single top-out as a win for the surviving player or simultaneous top-outs as a draw, and advances to the next round as soon as both players lock. It resolves spawn top-outs in that same transition. A finished session ignores future ticks until restart. The browser timer remains with the client layer that schedules `MATCH_GRAVITY_INTERVAL_MS`; this module owns only deterministic session transitions and outcomes.
+
 ### Next.js App Router with a same-origin Jev route
 
 Render the interactive match as a client-side game surface. Put the Jev proxy in a Next.js Route Handler on the Node.js runtime, under the same origin as the page. The browser sends the current Jev board, piece, and legal landing candidates; the route validates the data and calls Jev's decision endpoint once with a typed `choice` question. The API returns a chosen option and per-option probabilities; the route maps the result back to the candidate data and returns safe usage/latency metadata when available.
