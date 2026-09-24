@@ -2,7 +2,7 @@
 
 ## 1. Application foundation
 
-- [ ] 1.1 Scaffold a TypeScript Next.js App Router application and npm scripts for development, linting, tests, type-checking, and production build; verify the expected scripts run and `npm run build` succeeds.
+- [x] 1.1 Scaffold a TypeScript Next.js App Router application and npm scripts for development, linting, tests, type-checking, and production build; verify the expected scripts run and `npm run build` succeeds.
 - [ ] 1.2 Preserve the existing `agents-cli@0.1.0` release and `node_modules/agents-cli/catalog/agents/global-orchestrator.md` path while establishing app dependencies; verify the version and file path remain available after installation.
 
 ## 2. Deterministic Tetris engine
