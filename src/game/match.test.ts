@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { createEmptyBoard, PIECE_TYPES, type ActivePiece } from './engine';
-import { applySharedGravityTick, createMatchCore } from './match';
+import {
+  BOARD_WIDTH,
+  HIDDEN_ROWS,
+  createEmptyBoard,
+  PIECE_TYPES,
+  type ActivePiece,
+} from './engine';
+import {
+  advanceMatchRound,
+  applySharedGravityTick,
+  createMatchCore,
+  type MatchCoreState,
+} from './match';
+
+function withBothPlayersLocked(state: MatchCoreState): MatchCoreState {
+  return {
+    ...state,
+    human: { ...state.human, activePiece: null, lockedThisRound: true },
+    jev: { ...state.jev, activePiece: null, lockedThisRound: true },
+  };
+}
 
 describe('createMatchCore', () => {
   it('creates the same serializable opening and shared piece for the same seed', () => {
@@ -103,5 +122,93 @@ describe('applySharedGravityTick', () => {
     expect(ticked.jev.topOut).toBe(false);
     expect(ticked.jev.board).toBe(initial.jev.board);
     expect(ticked.jev.activePiece?.y).toBe(initial.jev.activePiece!.y + 1);
+  });
+});
+
+describe('advanceMatchRound', () => {
+  it('keeps the exact state until both players lock without topping out', () => {
+    const locked = withBothPlayersLocked(createMatchCore(123456));
+    const activePiece: ActivePiece = { type: 'T', rotation: 0, x: 3, y: 0 };
+    const humanStillPlaying = {
+      ...locked,
+      human: { ...locked.human, activePiece, lockedThisRound: false },
+    };
+    const humanTopOut = {
+      ...locked,
+      human: { ...locked.human, topOut: true },
+    };
+
+    expect(advanceMatchRound(humanStillPlaying)).toBe(humanStillPlaying);
+    expect(advanceMatchRound(humanTopOut)).toBe(humanTopOut);
+  });
+
+  it('spawns the next shared piece only after both players lock', () => {
+    const initial = withBothPlayersLocked(createMatchCore(123456));
+    const advanced = advanceMatchRound(initial);
+
+    expect(advanced).not.toBe(initial);
+    expect(advanced.roundIndex).toBe(initial.roundIndex + 1);
+    expect(advanced.currentPiece).toBe(initial.bag[initial.bagIndex]);
+    expect(advanced.human.activePiece?.type).toBe(advanced.currentPiece);
+    expect(advanced.jev.activePiece?.type).toBe(advanced.currentPiece);
+    expect(advanced.human.lockedThisRound).toBe(false);
+    expect(advanced.jev.lockedThisRound).toBe(false);
+    expect(advanced.human.board).toBe(initial.human.board);
+    expect(advanced.jev.board).toBe(initial.jev.board);
+    expect(advanced.human.board).not.toBe(advanced.jev.board);
+  });
+
+  it('draws two consecutive complete seven-bags without gaps or duplicates', () => {
+    let state = createMatchCore(987654321);
+    const sequence = [state.currentPiece];
+
+    for (let round = 1; round < 14; round += 1) {
+      state = advanceMatchRound(withBothPlayersLocked(state));
+      sequence.push(state.currentPiece);
+    }
+
+    expect([...sequence.slice(0, 7)].sort()).toEqual([...PIECE_TYPES].sort());
+    expect([...sequence.slice(7, 14)].sort()).toEqual([...PIECE_TYPES].sort());
+    expect(state.roundIndex).toBe(13);
+  });
+
+  it('preserves future draws when a bag-boundary state is restored from JSON', () => {
+    let original = createMatchCore(987654321);
+    for (let round = 0; round < 6; round += 1) {
+      original = advanceMatchRound(withBothPlayersLocked(original));
+    }
+    const restored = JSON.parse(JSON.stringify(original)) as MatchCoreState;
+
+    const originalNext = advanceMatchRound(withBothPlayersLocked(original));
+    const restoredNext = advanceMatchRound(withBothPlayersLocked(restored));
+
+    expect(restoredNext.currentPiece).toBe(originalNext.currentPiece);
+    expect(restoredNext.randomState).toBe(originalNext.randomState);
+    expect(restoredNext.bag).toEqual(originalNext.bag);
+    expect(restoredNext.bagIndex).toBe(originalNext.bagIndex);
+    expect(restoredNext).toEqual(originalNext);
+  });
+
+  it('keeps one player on top-out when only that board blocks the next spawn', () => {
+    const match = createMatchCore(123456);
+    const humanBoard = createEmptyBoard().map((row) => [...row]);
+    for (let y = 0; y < HIDDEN_ROWS; y += 1) {
+      for (let x = 0; x < BOARD_WIDTH; x += 1) {
+        humanBoard[y][x] = 'I';
+      }
+    }
+    const locked = withBothPlayersLocked({
+      ...match,
+      human: { ...match.human, board: humanBoard },
+    });
+
+    const advanced = advanceMatchRound(locked);
+
+    expect(advanced.human.topOut).toBe(true);
+    expect(advanced.human.activePiece).toBeNull();
+    expect(advanced.jev.topOut).toBe(false);
+    expect(advanced.jev.activePiece?.type).toBe(advanced.currentPiece);
+    expect(advanced.human.board).toBe(humanBoard);
+    expect(advanced.jev.board).toBe(locked.jev.board);
   });
 });

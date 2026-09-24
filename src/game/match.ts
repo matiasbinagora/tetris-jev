@@ -142,3 +142,46 @@ export function applySharedGravityTick(state: MatchCoreState): MatchCoreState {
     jev: tickMovingPlayer(state.jev),
   };
 }
+
+export function advanceMatchRound(state: MatchCoreState): MatchCoreState {
+  if (
+    !state.human.lockedThisRound ||
+    !state.jev.lockedThisRound ||
+    state.human.topOut ||
+    state.jev.topOut
+  ) {
+    return state;
+  }
+
+  let bag = state.bag;
+  let bagIndex: number;
+  let randomState = state.randomState;
+  let currentPiece: PieceType;
+
+  if (state.bagIndex >= state.bag.length) {
+    const nextBag = shuffleBag(randomState);
+    bag = nextBag.bag;
+    randomState = nextBag.randomState;
+    currentPiece = bag[0];
+    bagIndex = 1;
+  } else {
+    const nextPiece = state.bag[state.bagIndex];
+    if (nextPiece === undefined) {
+      return state;
+    }
+
+    currentPiece = nextPiece;
+    bagIndex = state.bagIndex + 1;
+  }
+
+  return {
+    ...state,
+    randomState,
+    bag,
+    bagIndex,
+    roundIndex: state.roundIndex + 1,
+    currentPiece,
+    human: createPlayer(state.human.board, currentPiece),
+    jev: createPlayer(state.jev.board, currentPiece),
+  };
+}
