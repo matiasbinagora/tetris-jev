@@ -543,11 +543,11 @@ git commit -m "feat: resolve shared match lifecycle outcomes"
 - Modify: `README.md`
 - Modify: `openspec/changes/play-tetris-against-jev/tasks.md`
 
-- [ ] **Step 1: Update README with the implemented lifecycle**
+- [x] **Step 1: Update README with the implemented lifecycle**
 
 Update Current status to say the pure match-session lifecycle is implemented while browser controls/timer, Jev decision route, and playable UI remain pending. Update progress from 6 of 19 to 7 of 19 tasks complete. Add a `Match lifecycle` section describing the serializable phases, state-preserving pause/resume, immediate seeded restart, 700 ms tick ownership by the client, automatic next-round spawn after both locks, and win/draw outcomes. Preserve setup, installed skill, and agent tooling documentation.
 
-- [ ] **Step 2: Run complete verification before marking the task complete**
+- [x] **Step 2: Run complete verification before marking the task complete**
 
 Run: `npm test`
 
@@ -565,19 +565,20 @@ Run: `openspec validate play-tetris-against-jev --strict --no-interactive`
 
 Expected: `Change 'play-tetris-against-jev' is valid`.
 
-- [ ] **Step 3: Mark only task 3.2 complete and verify OpenSpec progress**
+- [x] **Step 3: Mark only task 3.2 complete and verify OpenSpec progress**
 
 Change `3.2` to `[x]` in `tasks.md`; leave tasks 4.1 and later unchecked. Then run:
 
 ```sh
 openspec validate play-tetris-against-jev --strict --no-interactive
 openspec status --change play-tetris-against-jev --json
+openspec instructions apply --change play-tetris-against-jev --json
 rg -c '^\s*- \[x\]' openspec/changes/play-tetris-against-jev/tasks.md
 ```
 
-Expected: validation succeeds, the status reports task 3.2 complete, and the checkbox count is `7`.
+Expected: validation succeeds, `openspec status` reports all planning artifacts ready, `openspec instructions apply` reports 7/19 tasks complete with task 3.2 done, and the checkbox count is `7`.
 
-- [ ] **Step 4: Commit README and OpenSpec progress**
+- [x] **Step 4: Commit README and OpenSpec progress**
 
 ```sh
 git add README.md openspec/changes/play-tetris-against-jev/tasks.md
