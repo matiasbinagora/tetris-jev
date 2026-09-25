@@ -25,7 +25,7 @@ The human and Jev boards SHALL maintain independent settled cells, line clears, 
 - **THEN** only that player's board removes the line
 
 ### Requirement: Match controls and shared pause
-The match SHALL support start, manual pause, resume, and restart. Pausing SHALL stop the shared gravity clock for both boards; resuming SHALL continue the same sequence and board states. Restart SHALL create a fresh seed and reset both boards and the match result.
+The match SHALL support start, manual pause, resume, and restart. Pausing SHALL stop the shared gravity clock for both boards; resuming SHALL continue the same sequence and board states. Restart SHALL create a fresh seed, reset both boards and the match result, and start the new match immediately.
 
 #### Scenario: Pause and resume
 - **WHEN** the player pauses and later resumes the match
@@ -33,7 +33,7 @@ The match SHALL support start, manual pause, resume, and restart. Pausing SHALL 
 
 #### Scenario: Restart a match
 - **WHEN** the player restarts
-- **THEN** both boards, sequence position, counters, and result reset for a new seeded match
+- **THEN** both boards, sequence position, counters, and result reset for a new seeded match that is already playing
 
 ### Requirement: Determine the winner
 The match SHALL end as soon as a board tops out. The surviving player SHALL win. If both boards top out on the same shared gravity tick or shared-round spawn, the match SHALL be recorded as a draw.

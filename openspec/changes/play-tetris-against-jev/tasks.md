@@ -14,7 +14,7 @@
 ## 3. Shared match lifecycle
 
 - [x] 3.1 Implement the seeded shared seven-bag sequence, one-piece-per-round barrier, and common 700 ms gravity clock over independent boards; verify tests show both boards receive the same round piece and only the active board states change on ticks.
-- [ ] 3.2 Implement start, pause, resume, restart, round progression, and win/draw resolution; verify tests cover preserved state on resume, fresh sequence on restart, independent line clears, single top-out, and simultaneous top-out.
+- [x] 3.2 Implement start, pause, resume, immediate seeded restart, round progression, and win/draw resolution; verify tests cover preserved state on resume, fresh sequence on restart, independent line clears, single top-out, and simultaneous top-out.
 
 ## 4. Jev decision service
 
