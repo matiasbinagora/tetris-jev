@@ -69,7 +69,7 @@ export function restartMatchSession(freshSeed: number): MatchSessionState;
 - Start only changes `ready` to `playing`; pause only changes `playing` to `paused`; resume only changes `paused` to `playing`. A request in any other phase returns its exact input object.
 - `restartMatchSession(freshSeed)` is a pure fresh-session constructor: it creates a new core with that seed, clears the result, and returns phase `playing`. The caller generates and supplies the seed.
 
-- [ ] **Step 1: Install the lockfile dependencies and verify the pinned agent CLI**
+- [x] **Step 1: Install the lockfile dependencies and verify the pinned agent CLI**
 
 Run: `npm ci`
 
@@ -83,7 +83,7 @@ Run: `test -f node_modules/agents-cli/catalog/agents/global-orchestrator.md`
 
 Expected: exit code 0.
 
-- [ ] **Step 2: Write failing tests for session creation and controls**
+- [x] **Step 2: Write failing tests for session creation and controls**
 
 Create `src/game/match-session.test.ts` with this behavior coverage:
 
@@ -161,13 +161,13 @@ describe('match session controls', () => {
 });
 ```
 
-- [ ] **Step 3: Run the focused tests to verify they fail**
+- [x] **Step 3: Run the focused tests to verify they fail**
 
 Run: `npm test -- src/game/match-session.test.ts`
 
 Expected: FAIL because the lifecycle module and exports do not exist yet.
 
-- [ ] **Step 4: Implement the session types and phase transitions**
+- [x] **Step 4: Implement the session types and phase transitions**
 
 Create `src/game/match-session.ts` with the declared interfaces. The control logic should follow these immutable transitions:
 
@@ -195,7 +195,7 @@ export function restartMatchSession(freshSeed: number): MatchSessionState {
 
 The actual module also defines the types above and imports only the existing pure core. Do not add timers, browser APIs, or `Math.random`.
 
-- [ ] **Step 5: Run lifecycle tests and type-check**
+- [x] **Step 5: Run lifecycle tests and type-check**
 
 Run: `npm test -- src/game/match-session.test.ts`
 
@@ -205,7 +205,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the lifecycle state and controls**
+- [x] **Step 6: Commit the lifecycle state and controls**
 
 ```sh
 git add src/game/match-session.ts src/game/match-session.test.ts
