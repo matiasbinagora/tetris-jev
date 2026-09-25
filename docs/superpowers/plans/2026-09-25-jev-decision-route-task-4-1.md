@@ -4,7 +4,7 @@
 
 **Goal:** Add a same-origin Node.js Route Handler that validates a submitted Jev board and complete legal-candidate set, makes exactly one typed Jev `choice` request, and returns only a selected candidate ID.
 
-**Architecture:** Keep request validation and typed upstream-payload construction in a small pure module at `src/server/jev-decision.ts`; keep HTTP, environment access, and the single upstream `fetch` in `app/api/jev/decision/route.ts`. The route recomputes the legal landing candidates with the existing game engine and accepts only the exact candidate set and landing poses derived from the submitted board and piece. Use the documented hosted Jev gateway with `JEV_API_KEY` and the Web `fetch` API, so this task adds no package dependency.
+**Architecture:** Keep request validation and typed upstream-payload construction in a small pure module at `src/server/jev-decision.ts`; keep HTTP, environment access, and the single upstream `fetch` in `app/api/jev/decision/route.ts`. The route recomputes the legal landing candidates with the existing game engine and accepts only the exact candidate set and landing poses derived from the submitted board and piece. Use the official TypeSafe System One endpoint with the user's TypeSafe API key stored as `JEV_API_KEY` and the Web `fetch` API, so this task adds no package dependency.
 
 **Tech Stack:** Next.js 16 App Router Route Handler, Node.js runtime, TypeScript, Vitest, existing Tetris engine.
 
@@ -63,7 +63,7 @@ export interface JevDecisionRequest {
 ```
 
 - Compare submitted candidates as a unique complete set against `enumerateLegalLandingCandidates(board, piece)`, including exact `lockedPiece` values. Reject duplicates, omissions, unknown IDs, and modified poses. Construct candidate criteria on the server from its recomputed candidates; do not trust client-supplied descriptions, simulations, or metrics.
-- Set `export const runtime = 'nodejs'` in the Route Handler. The route accepts JSON with `board`, `piece`, and `candidates`, reads `process.env.JEV_API_KEY` inside `POST`, and makes exactly one `fetch` to `https://jevtypesafeai.com/api/v1/decide` for a valid request. Use a typed request containing one `choice` question named `placement`, with one criteria key per validated candidate ID and `model: 'jev-latest'`.
+- Set `export const runtime = 'nodejs'` in the Route Handler. The route accepts JSON with `board`, `piece`, and `candidates`, reads `process.env.JEV_API_KEY` inside `POST`, and makes exactly one `fetch` to `https://api.typesafe.ai/v1/systemone` for a valid request. Use a typed request containing one `choice` question named `placement`, with one criteria key per validated candidate ID and `model: 'jev-latest'`.
 - Treat non-JSON input, invalid board/piece/candidates, and empty or oversized candidate lists as safe 4xx responses before network access. Limit the encoded request body to 64 KiB; return 413 when exceeded. Return a generic 503 configuration error when the key is absent. Return a generic 502 for an upstream non-2xx response, unreadable/malformed choice answer, or a chosen ID not in the verified candidate map. Do not include the key, Authorization header, upstream response body, or exception text in responses or logs.
 - Keep the response intentionally minimal for this task: return only the verified `choice` ID. Task 4.2 will add selected candidate mapping, probabilities, and safe usage/latency metadata.
 
@@ -127,7 +127,7 @@ Build one TypeScript-typed upstream payload with `model: 'jev-latest'`, the subm
 
 - [ ] **Step 5: Implement the Node.js Route Handler with a single upstream call**
 
-Read the request as text, reject bodies larger than 64 KiB before parsing JSON, then validate. Check `JEV_API_KEY` only after the request is valid and immediately before the call. For valid input, issue one uncached JSON POST to `https://jevtypesafeai.com/api/v1/decide` with `Authorization: Bearer ${process.env.JEV_API_KEY}` and the typed choice payload. Parse the response as unknown data, require a `placement` answer of type `choice`, and accept its choice only when it is present in the recomputed candidate map.
+Read the request as text, reject bodies larger than 64 KiB before parsing JSON, then validate. Check `JEV_API_KEY` only after the request is valid and immediately before the call. For valid input, issue one uncached JSON POST to `https://api.typesafe.ai/v1/systemone` with `Authorization: Bearer ${process.env.JEV_API_KEY}` and the typed choice payload. Parse the response as unknown data, require a `placement` answer of type `choice`, and accept its choice only when it is present in the recomputed candidate map.
 
 Return `Response.json({ choice: candidateId })` on success. Return small generic JSON errors with 400 for invalid input, 413 for an oversized body, 503 when the key is missing, and 502 for upstream transport/status/shape/choice failures. Do not log errors or include exception text, response bodies, or credentials in a response.
 
@@ -196,6 +196,6 @@ After implementation, review the complete branch diff and final verification out
 
 ## Research references
 
-- The [Jev TypeScript integration guide](https://jevtypesafeai.com/integrations/typescript) documents the `JEV_API_KEY` hosted-key flow, the hosted `/api/v1/decide` endpoint, bearer authentication, and a typed `choice` request.
-- The [Jev decision API reference](https://jevtypesafeai.com/docs) documents up to 255 choice criteria and the `answers` response shape.
+- The [TypeSafe API reference](https://api.typesafe.ai/docs) documents Bearer authentication and `POST /v1/systemone`.
+- The [TypeSafe SDK source](https://github.com/typesafe-ai/typesafe-sdk-js/blob/main/src/client.ts) confirms the official TypeSafe API base URL, default `jev-latest` model, and `/v1/systemone` request path.
 - The [Next.js Route Handler reference](https://nextjs.org/docs/app/api-reference/file-conventions/route) documents POST handlers using Web `Request`/`Response` APIs and the route runtime configuration.
