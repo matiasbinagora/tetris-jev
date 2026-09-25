@@ -185,7 +185,7 @@ git diff --check
 
 Expected: all tests pass, lint/typecheck pass, strict OpenSpec validation is valid, apply instructions report 8/19 complete with task 4.1 done, checkbox count is `8`, and the diff check passes.
 
-- [ ] **Step 9: Commit the implementation and task record**
+- [x] **Step 9: Commit the implementation and task record**
 
 ```sh
 git add src/server/jev-decision.ts src/server/jev-decision.test.ts app/api/jev/decision/route.ts app/api/jev/decision/route.test.ts README.md openspec/changes/play-tetris-against-jev/tasks.md
