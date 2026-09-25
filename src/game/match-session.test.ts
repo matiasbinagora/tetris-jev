@@ -107,6 +107,7 @@ describe('match session controls', () => {
     expect(resumeMatchSession(playing)).toBe(playing);
     expect(startMatchSession(playing)).toBe(playing);
     expect(startMatchSession(paused)).toBe(paused);
+    expect(startMatchSession(finished)).toBe(finished);
     expect(resumeMatchSession(finished)).toBe(finished);
   });
 
@@ -121,9 +122,12 @@ describe('match session controls', () => {
     expect(restarted.core.jev.activePiece?.type).toBe(restarted.core.currentPiece);
   });
 
-  it('rejects an invalid restart seed', () => {
-    expect(() => restartMatchSession(1.5)).toThrow(RangeError);
-  });
+  it.each([1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects invalid restart seed %s',
+    (seed) => {
+      expect(() => restartMatchSession(seed)).toThrow(RangeError);
+    },
+  );
 });
 
 describe('tickMatchSession progression', () => {
@@ -142,6 +146,10 @@ describe('tickMatchSession progression', () => {
 
   it('advances once when both players have locked', () => {
     const core = withBothLocked(createMatchCore(123));
+    const humanBoard = core.human.board;
+    const jevBoard = core.jev.board;
+    const humanBoardSnapshot = humanBoard.map((row) => [...row]);
+    const jevBoardSnapshot = jevBoard.map((row) => [...row]);
     const ticked = tickMatchSession(playing(core));
     expect(ticked.phase).toBe('playing');
     expect(ticked.core.roundIndex).toBe(core.roundIndex + 1);
@@ -149,6 +157,10 @@ describe('tickMatchSession progression', () => {
     expect(ticked.core.jev.activePiece?.type).toBe(ticked.core.currentPiece);
     expect(ticked.core.human.lockedThisRound).toBe(false);
     expect(ticked.core.jev.lockedThisRound).toBe(false);
+    expect(ticked.core.human.board).toBe(humanBoard);
+    expect(ticked.core.jev.board).toBe(jevBoard);
+    expect(humanBoard).toEqual(humanBoardSnapshot);
+    expect(jevBoard).toEqual(jevBoardSnapshot);
   });
 
   it('clears a line on one board while retaining the other board cells', () => {
@@ -229,6 +241,7 @@ describe('tickMatchSession spawn top-outs', () => {
     expect(finished.core.jev.topOut).toBe(false);
     expect(finished.core.jev.activePiece?.type).toBe(finished.core.currentPiece);
     expect(finished.result).toEqual({ kind: 'win', winner: 'jev' });
+    expect(tickMatchSession(finished)).toBe(finished);
   });
 
   it('draws when both next-round spawns are blocked', () => {
@@ -242,5 +255,6 @@ describe('tickMatchSession spawn top-outs', () => {
     expect(finished.core.human.topOut).toBe(true);
     expect(finished.core.jev.topOut).toBe(true);
     expect(finished.result).toEqual({ kind: 'draw' });
+    expect(tickMatchSession(finished)).toBe(finished);
   });
 });
