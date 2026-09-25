@@ -123,6 +123,16 @@ describe('POST /api/jev/decision', () => {
     expect(upstreamFetch).not.toHaveBeenCalled();
   });
 
+  it('rejects a same-length duplicate candidate set without calling TypeSafe', async () => {
+    const body = createValidRequestBody();
+    const candidates = [...body.candidates];
+    candidates[candidates.length - 1] = { ...candidates[0] };
+    const response = await POST(createJsonRequest({ ...body, candidates }));
+
+    expect(response.status).toBe(400);
+    expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
   it('returns a safe configuration error without a call when JEV_API_KEY is absent', async () => {
     delete process.env.JEV_API_KEY;
     const response = await POST(createJsonRequest(createValidRequestBody()));

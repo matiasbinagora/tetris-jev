@@ -116,14 +116,29 @@ describe('validateJevDecisionRequest', () => {
 
   it('rejects duplicate candidate IDs', () => {
     const { request } = createValidRequest();
-    const first = request.candidates[0];
+    const candidates = [...request.candidates];
+    candidates[candidates.length - 1] = { ...candidates[0] };
 
     expect(
       validateJevDecisionRequest({
         ...request,
-        candidates: [...request.candidates, first],
+        candidates,
       }),
     ).toBeNull();
+  });
+
+  it('strips unrecognized active-piece fields before returning the validated snapshot', () => {
+    const { request } = createValidRequest();
+    const piece = {
+      ...request.piece,
+      description: 'client-controlled prose',
+      metrics: { holes: -999 },
+    };
+
+    const validated = validateJevDecisionRequest({ ...request, piece });
+
+    expect(validated?.piece).toEqual(request.piece);
+    expect(buildJevChoicePayload(validated!).state.piece).toEqual(request.piece);
   });
 
   it('rejects a candidate list that omits a legal landing', () => {

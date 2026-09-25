@@ -51,7 +51,12 @@ export function validateJevDecisionRequest(
   }
 
   const board = value.board;
-  const piece = value.piece;
+  const piece: ActivePiece = {
+    type: value.piece.type,
+    rotation: value.piece.rotation,
+    x: value.piece.x,
+    y: value.piece.y,
+  };
   if (!isValidPosition(board, piece) || !Array.isArray(value.candidates)) {
     return null;
   }
