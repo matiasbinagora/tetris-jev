@@ -232,7 +232,7 @@ export function tickMatchSession(state: MatchSessionState): MatchSessionState;
 - A playing tick applies exactly one shared gravity transition. A top-out from that transition ends the match before any round advancement. If both players top out in the same transition, the result is a draw; otherwise the surviving player wins.
 - If neither player topped out and both locked, advance once to the next round immediately. Resolve a top-out caused by either next-piece spawn in that same transition. The finished state keeps the resulting core for inspection.
 
-- [ ] **Step 1: Add failing tests for inactive ticks, shared progression, and independent board clearing**
+- [x] **Step 1: Add failing tests for inactive ticks, shared progression, and independent board clearing**
 
 Add tests to `src/game/match-session.test.ts` using fixture helpers that copy boards before editing them. For the line-clear case, set both active pieces and `currentPiece` to horizontal `I` at `{ x: 3, y: 20 }`; fill human row 21 except columns 3–6, and leave Jev's board empty. The assertions are:
 
@@ -364,13 +364,13 @@ For the regular progression fixture, call `playing(withBothLocked(createMatchCor
 
 For the ordinary progression test, create a core whose two players have `activePiece: null` and `lockedThisRound: true`, wrap it in a playing session, and tick once. For phase no-ops, make ready, paused, and finished sessions and assert the exact same reference is returned.
 
-- [ ] **Step 2: Run the orchestration tests to verify they fail**
+- [x] **Step 2: Run the orchestration tests to verify they fail**
 
 Run: `npm test -- src/game/match-session.test.ts`
 
 Expected: FAIL because `tickMatchSession` does not exist.
 
-- [ ] **Step 3: Implement the non-terminal shared tick path**
+- [x] **Step 3: Implement the non-terminal shared tick path**
 
 Add `tickMatchSession`. First return the exact state for any non-playing phase. Otherwise call `applySharedGravityTick`; when neither player topped out, call `advanceMatchRound` only if both `lockedThisRound` flags are true. Return a new `playing` state with the transitioned core and `result: null`. Do not call `setInterval` or import a browser API.
 
@@ -386,7 +386,7 @@ export function tickMatchSession(state: MatchSessionState): MatchSessionState {
 }
 ```
 
-- [ ] **Step 4: Run progression tests and add failing gravity top-out tests**
+- [x] **Step 4: Run progression tests and add failing gravity top-out tests**
 
 Run: `npm test -- src/game/match-session.test.ts`
 
@@ -427,7 +427,7 @@ describe('tickMatchSession gravity top-outs', () => {
 
 `withGravityBlock` copies the blocked board, writes `'I'` into row 2 columns 3–5, and starts both players with the shared T at `{ x: 3, y: 0 }`. The blocked T cannot descend and locks into hidden rows. Applying it once for each player creates the simultaneous case.
 
-- [ ] **Step 5: Implement gravity and terminal outcome resolution**
+- [x] **Step 5: Implement gravity and terminal outcome resolution**
 
 Add a private helper that maps top-out flags to results and returns `null` if neither is set. Use it immediately after `applySharedGravityTick`, before considering round advancement. If it returns a result, return phase `finished` with the ticked core. Do not advance after gravity top-out.
 
@@ -448,7 +448,7 @@ if (gravityResult !== null) {
 
 Keep the rest of the non-terminal path from Step 3. Do not return a playing state with a stale result.
 
-- [ ] **Step 6: Run gravity outcome tests and add failing spawn top-out tests**
+- [x] **Step 6: Run gravity outcome tests and add failing spawn top-out tests**
 
 Run: `npm test -- src/game/match-session.test.ts`
 
@@ -490,7 +490,7 @@ describe('tickMatchSession spawn top-outs', () => {
 
 `withSpawnBlocked` writes `'I'` to every cell in hidden rows 0 and 1 and returns a copied player state. Each fixture starts with both players locked; the core then advances one round and attempts the same next-piece spawn for both.
 
-- [ ] **Step 7: Resolve next-round spawn top-outs and finish the focused checks**
+- [x] **Step 7: Resolve next-round spawn top-outs and finish the focused checks**
 
 After `advanceMatchRound`, run the same result mapping against its returned core. If a result exists, return the session as `finished` with that advanced core; otherwise keep it `playing`. The completed transition is:
 
@@ -530,7 +530,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit tick orchestration and outcomes**
+- [x] **Step 8: Commit tick orchestration and outcomes**
 
 ```sh
 git add src/game/match-session.ts src/game/match-session.test.ts
