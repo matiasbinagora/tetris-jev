@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, and server-side Jev decision route are implemented. Two independent boards receive the same seeded seven-bag sequence and advance through shared 700 ms gravity ticks and a lock barrier. The home page is still a placeholder; Jev response metadata, browser controls and timer scheduling, and the playable interface remain pending.
+The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, and server-side Jev decision route with response metadata are implemented. Two independent boards receive the same seeded seven-bag sequence and advance through shared 700 ms gravity ticks and a lock barrier. The home page is still a placeholder; Jev request deadlines and retries, browser controls and timer scheduling, and the playable interface remain pending.
 
-OpenSpec implementation progress is **8 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, and 4.1). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **9 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, and 4.2). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -119,9 +119,9 @@ The serializable match-session state and transitions live in [`src/game/match-se
 
 ## Jev decision route
 
-`POST /api/jev/decision` is a same-origin Next.js Node.js Route Handler. It accepts the current board, active piece, and complete legal landing candidate set. The server validates the board dimensions and cells, active piece, candidate count, IDs, and exact landing poses by recomputing candidates with the shared game engine before making one typed `choice` request to the official TypeSafe System One endpoint. A successful task 4.1 response contains only the verified candidate ID: `{ "choice": "<candidate-id>" }`.
+`POST /api/jev/decision` is a same-origin Next.js Node.js Route Handler. It accepts the current board, active piece, and complete legal landing candidate set. The server validates the board dimensions and cells, active piece, candidate count, IDs, and exact landing poses by recomputing candidates with the shared game engine before making one typed `choice` request to the official TypeSafe System One endpoint. A successful response contains the verified candidate ID in `choice`, the canonical engine simulation in `selectedCandidate`, and the per-candidate `probabilities` returned by TypeSafe without normalization or rounding.
 
-The handler reads `JEV_API_KEY` only from its server environment and sends it as a Bearer credential. The key is never returned or logged. Invalid requests, an absent key, and upstream failures return small generic error responses. Probability and usage metadata mapping, request deadlines, retry behavior, and local `.env.local` instructions are tracked in later tasks. The deployment plan requires verifying Vercel Preview with its environment configuration before Production.
+The handler reads `JEV_API_KEY` only from its server environment and sends it as a Bearer credential. The key is never returned or logged. Invalid requests, an absent key, and upstream failures return small generic error responses. Valid TypeSafe token counts are mapped to `usage.inputTokens` and `usage.outputTokens`; `usage` is omitted when those counts are absent or malformed. The current API schema does not supply latency or cost, so the route does not estimate them. Request deadlines, retry behavior, and local `.env.local` instructions are tracked in later tasks. The deployment plan requires verifying Vercel Preview with its environment configuration before Production.
 
 ## Development workflow
 

@@ -35,26 +35,45 @@ function createJsonRequest(value: unknown): Request {
   });
 }
 
-function choiceResponse(choice: string): Response {
+function probabilitiesForRequest(body = createValidRequestBody()): Record<string, number> {
+  return Object.fromEntries(
+    enumerateLegalLandingCandidates(body.board, body.piece).map(
+      (candidate, index) => [
+        candidate.id,
+        index === 0 ? 0.123456789 : 0.234567891,
+      ],
+    ),
+  );
+}
+
+function choiceResponse(
+  choice: string,
+  options: {
+    includeUsage?: boolean;
+    probabilities?: Record<string, unknown>;
+    usage?: unknown;
+  } = {},
+): Response {
   const requestBody = createValidRequestBody();
-  return new Response(
-    JSON.stringify({
-      model: 'jev-latest',
-      answers: {
-        placement: {
-          type: 'choice',
-          choice,
-          confidence: 0.93,
-          probabilities: Object.fromEntries(
-            requestBody.candidates.map((candidate, index) => [
-              candidate.id,
-              index === 0 ? 1 : 0,
-            ]),
-          ),
-        },
+  const responseBody: Record<string, unknown> = {
+    model: 'jev-latest',
+    answers: {
+      placement: {
+        type: 'choice',
+        choice,
+        confidence: 0.93,
+        probabilities: options.probabilities ?? probabilitiesForRequest(requestBody),
       },
-      usage: { input_tokens: 120, output_tokens: 12 },
-    }),
+    },
+  };
+  if (options.includeUsage !== false) {
+    responseBody.usage = Object.hasOwn(options, 'usage')
+      ? options.usage
+      : { input_tokens: 120, output_tokens: 12 };
+  }
+
+  return new Response(
+    JSON.stringify(responseBody),
     { status: 200, headers: { 'Content-Type': 'application/json' } },
   );
 }
@@ -75,16 +94,22 @@ describe('POST /api/jev/decision', () => {
     }
   });
 
-  it('makes one typed TypeSafe choice call and returns only the validated choice ID', async () => {
+  it('maps one typed TypeSafe choice call to the canonical candidate, probabilities, and usage', async () => {
     const body = createValidRequestBody();
-    const selectedCandidate = body.candidates[0];
+    const canonicalCandidates = enumerateLegalLandingCandidates(body.board, body.piece);
+    const selectedCandidate = canonicalCandidates[3]!;
     upstreamFetch.mockResolvedValueOnce(choiceResponse(selectedCandidate.id));
 
     const response = await POST(createJsonRequest(body));
     const responseText = await response.text();
 
     expect(response.status).toBe(200);
-    expect(JSON.parse(responseText)).toEqual({ choice: selectedCandidate.id });
+    expect(JSON.parse(responseText)).toEqual({
+      choice: selectedCandidate.id,
+      selectedCandidate,
+      probabilities: probabilitiesForRequest(body),
+      usage: { inputTokens: 120, outputTokens: 12 },
+    });
     expect(responseText).not.toContain(API_KEY_SENTINEL);
     expect(upstreamFetch).toHaveBeenCalledTimes(1);
 
@@ -111,6 +136,69 @@ describe('POST /api/jev/decision', () => {
     expect(Object.keys(payload.questions.placement.criteria)).toEqual(
       body.candidates.map(({ id }) => id),
     );
+  });
+
+  it('maps valid zero usage and omits absent or malformed optional usage', async () => {
+    const body = createValidRequestBody();
+    const selectedId = body.candidates[0]!.id;
+    const validCandidates = enumerateLegalLandingCandidates(body.board, body.piece);
+
+    upstreamFetch.mockResolvedValueOnce(
+      choiceResponse(selectedId, { includeUsage: false }),
+    );
+    const missingUsageResponse = await POST(createJsonRequest(body));
+    const missingUsageBody = await missingUsageResponse.json();
+    expect(missingUsageResponse.status).toBe(200);
+    expect(missingUsageBody).not.toHaveProperty('usage');
+    expect(missingUsageBody).not.toHaveProperty('latencyMs');
+    expect(missingUsageBody).not.toHaveProperty('cost');
+
+    upstreamFetch.mockResolvedValueOnce(
+      choiceResponse(selectedId, {
+        usage: { input_tokens: 4.5, output_tokens: 12 },
+      }),
+    );
+    const fractionalInputResponse = await POST(createJsonRequest(body));
+    const fractionalInputBody = await fractionalInputResponse.json();
+    expect(fractionalInputResponse.status).toBe(200);
+    expect(fractionalInputBody).not.toHaveProperty('usage');
+
+    upstreamFetch.mockResolvedValueOnce(
+      choiceResponse(selectedId, {
+        usage: { input_tokens: 120, output_tokens: -1 },
+      }),
+    );
+    const negativeOutputResponse = await POST(createJsonRequest(body));
+    const negativeOutputBody = await negativeOutputResponse.json();
+    expect(negativeOutputResponse.status).toBe(200);
+    expect(negativeOutputBody).not.toHaveProperty('usage');
+    expect(negativeOutputBody.selectedCandidate).toEqual(validCandidates[0]);
+
+    upstreamFetch.mockResolvedValueOnce(
+      choiceResponse(selectedId, {
+        usage: { input_tokens: 0, output_tokens: 0 },
+      }),
+    );
+    const zeroUsageResponse = await POST(createJsonRequest(body));
+    const zeroUsageBody = await zeroUsageResponse.json();
+    expect(zeroUsageResponse.status).toBe(200);
+    expect(zeroUsageBody.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+  });
+
+  it('rejects incomplete probabilities with a generic error and no upstream detail', async () => {
+    const body = createValidRequestBody();
+    upstreamFetch.mockResolvedValueOnce(
+      choiceResponse(body.candidates[0]!.id, {
+        probabilities: { forged: 0.5 },
+      }),
+    );
+    const response = await POST(createJsonRequest(body));
+    const responseText = await response.text();
+
+    expect(response.status).toBe(502);
+    expect(JSON.parse(responseText)).toEqual({ error: 'jev_upstream_failed' });
+    expect(responseText).not.toContain(API_KEY_SENTINEL);
+    expect(responseText).not.toContain('forged');
   });
 
   it('rejects an invalid candidate set without calling TypeSafe', async () => {
