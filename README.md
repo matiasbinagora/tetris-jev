@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, and pure match-session lifecycle are implemented. Two independent boards receive the same seeded seven-bag sequence and advance through shared 700 ms gravity ticks and a lock barrier. The home page is still a placeholder; browser controls and timer scheduling, the Jev decision route, and the playable interface remain pending.
+The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, and server-side Jev decision route are implemented. Two independent boards receive the same seeded seven-bag sequence and advance through shared 700 ms gravity ticks and a lock barrier. The home page is still a placeholder; Jev response metadata, browser controls and timer scheduling, and the playable interface remain pending.
 
-OpenSpec implementation progress is **7 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, and 3.2). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **8 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, and 4.1). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -30,7 +30,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | --- | --- |
 | `npm run dev` | Start the Next.js development server |
 | `npm run lint` | Run ESLint |
-| `npm test` | Run the Vitest unit suites for the Tetris engine, shared-match core, and lifecycle |
+| `npm test` | Run the Vitest unit suites for the Tetris engine, shared-match core, lifecycle, and Jev request validation/route |
 | `npm run typecheck` | Run TypeScript without emitting files |
 | `npm run build` | Build the production application |
 | `npm start` | Serve the production build |
@@ -117,9 +117,11 @@ The serializable match-session state and transitions live in [`src/game/match-se
 
 `tickMatchSession(state)` is a pure transition with no browser timer. It ignores ticks while the session is ready, paused, or finished. While playing, it applies one shared gravity tick, ends with a win when one player tops out or a draw when both top out in the same gravity event, and advances as soon as both players lock. It also resolves single or simultaneous top-outs caused by spawning the next shared piece. The client layer will schedule `MATCH_GRAVITY_INTERVAL_MS` ticks and connect these transitions to browser controls in a later task.
 
-## Jev API and Vercel
+## Jev decision route
 
-The Jev route and API-key configuration have not been implemented yet. When they are, `JEV_API_KEY` must remain server-only, with no `NEXT_PUBLIC_` prefix, and the setup instructions will be added here. The deployment plan requires verifying Vercel Preview with its environment configuration before Production.
+`POST /api/jev/decision` is a same-origin Next.js Node.js Route Handler. It accepts the current board, active piece, and complete legal landing candidate set. The server validates the board dimensions and cells, active piece, candidate count, IDs, and exact landing poses by recomputing candidates with the shared game engine before making one typed `choice` request to the official TypeSafe System One endpoint. A successful task 4.1 response contains only the verified candidate ID: `{ "choice": "<candidate-id>" }`.
+
+The handler reads `JEV_API_KEY` only from its server environment and sends it as a Bearer credential. The key is never returned or logged. Invalid requests, an absent key, and upstream failures return small generic error responses. Probability and usage metadata mapping, request deadlines, retry behavior, and local `.env.local` instructions are tracked in later tasks. The deployment plan requires verifying Vercel Preview with its environment configuration before Production.
 
 ## Development workflow
 

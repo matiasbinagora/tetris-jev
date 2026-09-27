@@ -18,7 +18,7 @@
 
 ## 4. Jev decision service
 
-- [ ] 4.1 Implement a same-origin Next.js Node.js Route Handler that validates board/piece/candidates, reads `JEV_API_KEY` server-side, and calls Jev once with a typed `choice`; verify route tests cover valid requests, invalid candidates, missing credentials, upstream failures, and that the key is absent from responses and client bundles.
+- [x] 4.1 Implement a same-origin Next.js Node.js Route Handler that validates board/piece/candidates, reads `JEV_API_KEY` server-side, and calls Jev once with a typed `choice`; verify route tests cover valid requests, invalid candidates, missing credentials, upstream failures, and that the key is absent from responses and client bundles.
 - [ ] 4.2 Map Jev's selected candidate, per-candidate probabilities, and returned latency/usage metadata to a safe response; verify tests cover valid choice mapping, probability preservation, omitted optional metrics, malformed responses, and unknown candidate IDs.
 - [ ] 4.3 Implement the eight-second request deadline, shared pause, pending/error states, and same-snapshot retry without fallback behavior; verify tests show both boards remain unchanged during pending/failure and retry resubmits the same seed, board, piece, and candidate set.
 - [ ] 4.4 Document `.env.local`, the `JEV_API_KEY` variable, key handling, and safe Jev setup in the project README; verify every documented local setup step matches the implemented route configuration.
