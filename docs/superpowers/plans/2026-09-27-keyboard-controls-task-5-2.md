@@ -31,6 +31,7 @@
 **Files:**
 - Create `src/game/human-controls.ts` and `src/game/human-controls.test.ts`.
 - Create `src/client/game-keyboard.ts` and `src/client/game-keyboard.test.ts`.
+- Create `src/client/match-app-keyboard.test.tsx` for rendered focus/keyboard behavior.
 - Modify `src/client/match-app.tsx`, `app/globals.css`, `README.md`, and the OpenSpec tasks file.
 
 **Interfaces:**
@@ -46,6 +47,7 @@
 - [x] Implement the pure keyboard event dispatcher; run its focused tests and expect all mappings and guards to pass.
 - [x] Add a focusable human-board region with an `onKeyDown` binding; route actions through functional `setState` and recheck current state before applying. Keep the existing action buttons outside the board focus target.
 - [x] Render on-screen key help, add a visible `:focus-visible` ring, update the README and mark task 5.2 complete.
+- [x] Add a JSDOM component test for board focus, movement/scroll prevention, native button activation, and the focus boundary.
 - [x] Manually verify focus behavior in a desktop browser.
 - [x] Run the full test suite, lint, typecheck, production build, strict OpenSpec validation, and `git diff --check`.
 - [ ] Commit task 5.2, request one independent final review, push the branch, and open its PR against `main`.

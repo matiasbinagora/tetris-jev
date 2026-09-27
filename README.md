@@ -42,7 +42,7 @@ Replace the placeholder with your own key. Keep the variable name exactly `JEV_A
 | --- | --- |
 | `npm run dev` | Start the Next.js development server |
 | `npm run lint` | Run ESLint |
-| `npm test` | Run the Vitest unit suites for the Tetris engine, match lifecycle and keyboard controls, and Jev decision flow |
+| `npm test` | Run the Vitest unit and JSDOM UI suites for the engine, match lifecycle, keyboard controls, and Jev decision flow |
 | `npm run typecheck` | Run TypeScript without emitting files |
 | `npm run build` | Build the production application |
 | `npm start` | Serve the production build |
