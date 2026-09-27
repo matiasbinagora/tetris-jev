@@ -96,6 +96,6 @@ Add the browser install and run commands to `README.md`, describe that all decis
 
 Run `npm test`, `npm run test:e2e`, `npm run lint`, `npm run typecheck`, `npm run build`, `npx openspec validate play-tetris-against-jev --strict`, and `git diff --check`. Confirm `.env` / `.env.local` remain ignored, `agents-cli` is still `0.1.0` with its orchestrator file, and the E2E run completed without using an API key.
 
-- [ ] **Step 8: Review and submit task PR**
+- [x] **Step 8: Review and submit task PR**
 
 Commit task 5.4, request one independent final review, push `feature/task-5-4-e2e-match-flow`, and open one PR against `main`.
