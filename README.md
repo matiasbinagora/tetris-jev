@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, focused keyboard controls, Jev decision facts panel, and Playwright browser-flow coverage are implemented. The browser shows both boards, starts the shared 700 ms clock, pauses during Jev decisions, accepts keyboard input after the human board receives focus, and retains the last completed Jev selection and calculated outcomes during the human turn. E2E tests cover start, decision success/retry, a human round, pause/resume, restart, and a terminal result with Jev mocked.
+The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, focused keyboard controls, Jev decision facts panel, Playwright browser-flow coverage, and Vercel environment setup documentation are implemented. The browser shows both boards, starts the shared 700 ms clock, pauses during Jev decisions, accepts keyboard input after the human board receives focus, and retains the last completed Jev selection and calculated outcomes during the human turn. E2E tests cover start, decision success/retry, a human round, pause/resume, restart, and a terminal result with Jev mocked.
 
-OpenSpec implementation progress is **15 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, and 5.4). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **16 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, and 6.1). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -35,6 +35,25 @@ JEV_API_KEY=your_typesafe_api_key_here
 Replace the placeholder with your own key. Keep the variable name exactly `JEV_API_KEY`; do not add a `NEXT_PUBLIC_` prefix. Next.js loads `.env.local` into the server environment when you run `npm run dev`, and the Node.js Route Handler reads `process.env.JEV_API_KEY` for `POST /api/jev/decision`. Start or restart the development server after creating or changing the file. Each Git worktree is a separate checkout, so place `.env.local` in whichever worktree runs the app.
 
 `.env.local` is covered by this repository's `.gitignore`. Keep the key out of commits, PR descriptions, screenshots, browser code, and client-side environment variables. Do not paste it into chat or a terminal command whose output you plan to share. The route sends it only in the upstream `Authorization: Bearer` header to TypeSafe's System One API. If the key is absent, a valid decision request returns `503` with `jev_not_configured`; it does not call TypeSafe. An invalid request is rejected before the key is checked. The split-screen view, keyboard controls, and calculated decision facts are available locally.
+
+### Configure Jev on Vercel
+
+Vercel uses separate environment scopes for Preview and Production. Configure `JEV_API_KEY` as a server-side environment variable in the Vercel project; use this exact name and do not add a `NEXT_PUBLIC_` prefix. The Next.js decision route reads it on the server. Never put the value in source code, client-side configuration, screenshots, or logs.
+
+#### Preview first
+
+1. Connect the Git repository to a Vercel project. The Preview deployment steps are in OpenSpec task 6.2.
+2. In the Vercel dashboard, open the project and go to **Settings → Environment Variables**. Add `JEV_API_KEY`, enter the TypeSafe API key as its value, and select **Preview**. You can scope it to all Preview branches or a specific branch.
+3. Save the variable and create a new Preview deployment (or redeploy the branch) so the deployment receives the updated environment.
+4. Open the Preview URL and verify the game can complete a Jev decision. Confirm the browser-visible response and assets do not contain the key.
+
+Do not configure or promote Production until Preview has been verified. Vercel applies environment variable changes only to new deployments, so redeploy after changing a value or its environment scope.
+
+#### Production after Preview verification
+
+After Preview passes, return to **Settings → Environment Variables** and add or assign `JEV_API_KEY` for the **Production** environment. Then create a Production deployment from the configured production branch, or redeploy it, so it receives the Production-scoped value. Verify a Jev decision and confirm the key remains absent from browser-visible responses and assets. The actual Production configuration and deployment are tracked separately in OpenSpec task 6.3.
+
+For current Vercel dashboard steps and environment behavior, see [Managing Environment Variables](https://vercel.com/docs/environment-variables/managing-environment-variables) and [Environment Variables](https://vercel.com/docs/environment-variables).
 
 ### Available commands
 
