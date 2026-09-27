@@ -8,6 +8,7 @@ import {
 } from '../game/engine';
 import {
   buildJevChoicePayload,
+  mapJevDecisionResponse,
   validateJevDecisionRequest,
   type JevDecisionRequest,
 } from './jev-decision';
@@ -27,6 +28,27 @@ function createValidRequest(): {
       candidates: candidates.map(({ id, lockedPiece }) => ({ id, lockedPiece })),
     },
     candidates,
+  };
+}
+
+function createValidTypeSafeResponse(
+  candidates: LandingCandidate[],
+  choice = candidates[0]!.id,
+): Record<string, unknown> {
+  return {
+    answers: {
+      placement: {
+        type: 'choice',
+        choice,
+        probabilities: Object.fromEntries(
+          candidates.map((candidate, index) => [
+            candidate.id,
+            index === 0 ? 0.123456789 : 0.234567891,
+          ]),
+        ),
+      },
+    },
+    usage: { input_tokens: 120, output_tokens: 12 },
   };
 }
 
@@ -218,5 +240,187 @@ describe('buildJevChoicePayload', () => {
         value.includes('client'),
       ),
     ).toBe(false);
+  });
+});
+
+describe('mapJevDecisionResponse', () => {
+  it('maps the choice to the canonical candidate and preserves returned probabilities and usage', () => {
+    const { request, candidates } = createValidRequest();
+    const validated = validateJevDecisionRequest(request)!;
+    const selected = candidates[3]!;
+    const upstream = createValidTypeSafeResponse(candidates, selected.id);
+
+    const mapped = mapJevDecisionResponse(validated, upstream);
+
+    expect(mapped).toEqual({
+      choice: selected.id,
+      selectedCandidate: selected,
+      probabilities: (
+        upstream.answers as {
+          placement: { probabilities: Record<string, number> };
+        }
+      ).placement.probabilities,
+      usage: { inputTokens: 120, outputTokens: 12 },
+    });
+    expect(mapped?.probabilities[candidates[0]!.id]).toBe(0.123456789);
+  });
+
+  it('omits absent and malformed optional usage metadata', () => {
+    const { request, candidates } = createValidRequest();
+    const validated = validateJevDecisionRequest(request)!;
+    const missingUsage = createValidTypeSafeResponse(candidates);
+    delete missingUsage.usage;
+    const malformedUsage = {
+      ...createValidTypeSafeResponse(candidates),
+      usage: { input_tokens: 1.5, output_tokens: -2 },
+    };
+
+    expect(mapJevDecisionResponse(validated, missingUsage)).not.toHaveProperty(
+      'usage',
+    );
+    expect(mapJevDecisionResponse(validated, malformedUsage)).not.toHaveProperty(
+      'usage',
+    );
+  });
+
+  it.each([
+    ['missing answers', () => ({})],
+    [
+      'non-choice answer',
+      (response: Record<string, unknown>) => ({
+        ...response,
+        answers: { placement: { type: 'noul', noul: 0.9 } },
+      }),
+    ],
+    [
+      'unknown choice ID',
+      (response: Record<string, unknown>) => ({
+        ...response,
+        answers: {
+          placement: {
+            ...(
+              response.answers as {
+                placement: Record<string, unknown>;
+              }
+            ).placement,
+            choice: 'unknown-candidate',
+          },
+        },
+      }),
+    ],
+    [
+      'incomplete probabilities',
+      (response: Record<string, unknown>) => {
+        const answers = response.answers as {
+          placement: Record<string, unknown>;
+        };
+        const probabilities = {
+          ...(answers.placement.probabilities as Record<string, number>),
+        };
+        delete probabilities[Object.keys(probabilities)[0]!];
+        return {
+          ...response,
+          answers: { placement: { ...answers.placement, probabilities } },
+        };
+      },
+    ],
+    [
+      'additional probability key',
+      (response: Record<string, unknown>) => {
+        const answers = response.answers as {
+          placement: Record<string, unknown>;
+        };
+        return {
+          ...response,
+          answers: {
+            placement: {
+              ...answers.placement,
+              probabilities: {
+                ...(answers.placement.probabilities as Record<string, number>),
+                forged: 0.5,
+              },
+            },
+          },
+        };
+      },
+    ],
+    [
+      'non-numeric probability',
+      (response: Record<string, unknown>) => {
+        const answers = response.answers as {
+          placement: Record<string, unknown>;
+        };
+        const probabilities = {
+          ...(answers.placement.probabilities as Record<string, number>),
+          [Object.keys(
+            answers.placement.probabilities as Record<string, number>,
+          )[0]!]: '0.5',
+        };
+        return {
+          ...response,
+          answers: { placement: { ...answers.placement, probabilities } },
+        };
+      },
+    ],
+    [
+      'non-finite probability',
+      (response: Record<string, unknown>) => {
+        const answers = response.answers as {
+          placement: Record<string, unknown>;
+        };
+        const probabilities = {
+          ...(answers.placement.probabilities as Record<string, number>),
+          [Object.keys(
+            answers.placement.probabilities as Record<string, number>,
+          )[0]!]: Number.NaN,
+        };
+        return {
+          ...response,
+          answers: { placement: { ...answers.placement, probabilities } },
+        };
+      },
+    ],
+    [
+      'negative probability',
+      (response: Record<string, unknown>) => {
+        const answers = response.answers as {
+          placement: Record<string, unknown>;
+        };
+        const probabilities = {
+          ...(answers.placement.probabilities as Record<string, number>),
+          [Object.keys(
+            answers.placement.probabilities as Record<string, number>,
+          )[0]!]: -0.01,
+        };
+        return {
+          ...response,
+          answers: { placement: { ...answers.placement, probabilities } },
+        };
+      },
+    ],
+    [
+      'probability greater than one',
+      (response: Record<string, unknown>) => {
+        const answers = response.answers as {
+          placement: Record<string, unknown>;
+        };
+        const probabilities = {
+          ...(answers.placement.probabilities as Record<string, number>),
+          [Object.keys(
+            answers.placement.probabilities as Record<string, number>,
+          )[0]!]: 1.01,
+        };
+        return {
+          ...response,
+          answers: { placement: { ...answers.placement, probabilities } },
+        };
+      },
+    ],
+  ])('rejects %s', (_caseName, mutate) => {
+    const { request, candidates } = createValidRequest();
+    const validated = validateJevDecisionRequest(request)!;
+    const upstream = mutate(createValidTypeSafeResponse(candidates));
+
+    expect(mapJevDecisionResponse(validated, upstream)).toBeNull();
   });
 });

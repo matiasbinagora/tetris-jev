@@ -1,5 +1,6 @@
 import {
   buildJevChoicePayload,
+  mapJevDecisionResponse,
   validateJevDecisionRequest,
 } from '../../../../src/server/jev-decision';
 
@@ -66,12 +67,12 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError('jev_upstream_failed', 502);
   }
 
-  const choice = readChoiceId(responseData);
-  if (!choice || !validated.candidates.some(({ id }) => id === choice)) {
+  const mappedResponse = mapJevDecisionResponse(validated, responseData);
+  if (!mappedResponse) {
     return jsonError('jev_upstream_failed', 502);
   }
 
-  return Response.json({ choice });
+  return Response.json(mappedResponse);
 }
 
 async function readRequestBody(request: Request): Promise<BodyReadResult> {
@@ -119,28 +120,6 @@ async function readRequestBody(request: Request): Promise<BodyReadResult> {
   } catch {
     return { kind: 'invalid' };
   }
-}
-
-function readChoiceId(value: unknown): string | null {
-  if (!isRecord(value) || !isRecord(value.answers)) {
-    return null;
-  }
-
-  const placement = value.answers.placement;
-  if (
-    !isRecord(placement) ||
-    placement.type !== 'choice' ||
-    typeof placement.choice !== 'string' ||
-    placement.choice.length === 0
-  ) {
-    return null;
-  }
-
-  return placement.choice;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function jsonError(error: string, status: number): Response {

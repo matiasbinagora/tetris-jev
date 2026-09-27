@@ -40,6 +40,18 @@ export interface JevChoicePayload {
   };
 }
 
+export interface JevTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface JevDecisionResult {
+  choice: string;
+  selectedCandidate: LandingCandidate;
+  probabilities: Record<string, number>;
+  usage?: JevTokenUsage;
+}
+
 const MAX_CANDIDATES = 255;
 
 /** Validates untrusted route input and replaces submitted candidates with canonical engine results. */
@@ -121,6 +133,93 @@ export function buildJevChoicePayload(
         ),
       },
     },
+  };
+}
+
+export function mapJevDecisionResponse(
+  validated: ValidatedJevDecision,
+  value: unknown,
+): JevDecisionResult | null {
+  if (!isRecord(value) || !isRecord(value.answers)) {
+    return null;
+  }
+
+  const placement = value.answers.placement;
+  if (
+    !isRecord(placement) ||
+    placement.type !== 'choice' ||
+    typeof placement.choice !== 'string' ||
+    placement.choice.length === 0
+  ) {
+    return null;
+  }
+
+  const selectedCandidate = validated.candidates.find(
+    ({ id }) => id === placement.choice,
+  );
+  if (!selectedCandidate || !isRecord(placement.probabilities)) {
+    return null;
+  }
+
+  const probabilityIds = Object.keys(placement.probabilities);
+  if (
+    probabilityIds.length !== validated.candidates.length ||
+    probabilityIds.some(
+      (id) => !validated.candidates.some((candidate) => candidate.id === id),
+    )
+  ) {
+    return null;
+  }
+
+  const probabilities: Record<string, number> = {};
+  for (const { id } of validated.candidates) {
+    if (!Object.hasOwn(placement.probabilities, id)) {
+      return null;
+    }
+
+    const probability = placement.probabilities[id];
+    if (
+      typeof probability !== 'number' ||
+      !Number.isFinite(probability) ||
+      probability < 0 ||
+      probability > 1
+    ) {
+      return null;
+    }
+
+    probabilities[id] = probability;
+  }
+
+  const usage = readJevTokenUsage(value.usage);
+  return {
+    choice: selectedCandidate.id,
+    selectedCandidate,
+    probabilities,
+    ...(usage ? { usage } : {}),
+  };
+}
+
+function readJevTokenUsage(value: unknown): JevTokenUsage | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const inputTokens = value.input_tokens;
+  const outputTokens = value.output_tokens;
+  if (
+    typeof inputTokens !== 'number' ||
+    typeof outputTokens !== 'number' ||
+    !Number.isSafeInteger(inputTokens) ||
+    !Number.isSafeInteger(outputTokens) ||
+    inputTokens < 0 ||
+    outputTokens < 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
   };
 }
 

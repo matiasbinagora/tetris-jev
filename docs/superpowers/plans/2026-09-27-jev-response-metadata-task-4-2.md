@@ -94,14 +94,14 @@ Validate that the root and `answers.placement` are plain objects; require `place
 
 **Implementation steps:**
 
-- [ ] Read the documented TypeSafe response schema and verify `ChoiceAnswer.probabilities` and `Usage` field names against the official API reference and official SDK types.
-- [ ] Write pure mapper tests first. Cover an exact candidate choice and probability map; verify the selected candidate equals the canonical engine simulation; preserve non-integer fractional probabilities exactly; map valid usage; omit absent and malformed usage; reject an invalid choice type, unknown choice ID, missing answer, incomplete/extra probability keys, non-number, `NaN`/infinity, and values outside `[0, 1]`.
-- [ ] Run focused tests and confirm assertion-level RED before implementing the mapper.
-- [ ] Implement the pure mapper. Keep the candidate list and selected candidate sourced only from the `ValidatedJevDecision`; never forward the upstream object itself.
-- [ ] Update the route to call the mapper after one successful upstream JSON response. Return its result as JSON, or `{ "error": "jev_upstream_failed" }` with status 502 if required choice/probability data cannot be mapped. Keep 4.1 input/key/upstream protections unchanged.
-- [ ] Add route tests for the extended success payload, valid token usage mapping, missing/malformed optional metadata omission, malformed answer/probability errors, unknown choice, and key/upstream detail absence.
-- [ ] Update `README.md` current status to 9/19 and document the chosen `choice`, canonical `selectedCandidate`, exact probability mapping, and optional returned token usage. Continue to defer `.env.local` setup instructions to task 4.4.
-- [ ] Mark only task 4.2 complete in the OpenSpec task list after final verification.
+- [x] Read the documented TypeSafe response schema and verify `ChoiceAnswer.probabilities` and `Usage` field names against the official API reference and official SDK types.
+- [x] Write pure mapper tests first. Cover an exact candidate choice and probability map; verify the selected candidate equals the canonical engine simulation; preserve non-integer fractional probabilities exactly; map valid usage; omit absent and malformed usage; reject an invalid choice type, unknown choice ID, missing answer, incomplete/extra probability keys, non-number, `NaN`/infinity, and values outside `[0, 1]`.
+- [x] Run focused tests and confirm assertion-level RED before implementing the mapper.
+- [x] Implement the pure mapper. Keep the candidate list and selected candidate sourced only from the `ValidatedJevDecision`; never forward the upstream object itself.
+- [x] Update the route to call the mapper after one successful upstream JSON response. Return its result as JSON, or `{ "error": "jev_upstream_failed" }` with status 502 if required choice/probability data cannot be mapped. Keep 4.1 input/key/upstream protections unchanged.
+- [x] Add route tests for the extended success payload, valid token usage mapping, missing/malformed optional metadata omission, malformed answer/probability errors, unknown choice, and key/upstream detail absence.
+- [x] Update `README.md` current status to 9/19 and document the chosen `choice`, canonical `selectedCandidate`, exact probability mapping, and optional returned token usage. Continue to defer `.env.local` setup instructions to task 4.4.
+- [x] Mark only task 4.2 complete in the OpenSpec task list after final verification.
 
 **Verification:**
 
