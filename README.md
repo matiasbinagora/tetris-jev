@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route with response metadata, and decision deadline/retry coordinator are implemented. Two independent boards receive the same seeded seven-bag sequence and advance through shared 700 ms gravity ticks and a lock barrier. The home page is still a placeholder; browser controls and timer scheduling, decision UI wiring, and the playable interface remain pending.
+The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, and split-screen match view are implemented. The browser shows both boards, starts the shared 700 ms clock, and pauses during Jev decisions. Keyboard controls, detailed decision probabilities, and full browser-flow coverage remain pending.
 
-OpenSpec implementation progress is **11 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, and 4.4). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **12 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, and 5.1). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -34,7 +34,7 @@ JEV_API_KEY=your_typesafe_api_key_here
 
 Replace the placeholder with your own key. Keep the variable name exactly `JEV_API_KEY`; do not add a `NEXT_PUBLIC_` prefix. Next.js loads `.env.local` into the server environment when you run `npm run dev`, and the Node.js Route Handler reads `process.env.JEV_API_KEY` for `POST /api/jev/decision`. Start or restart the development server after creating or changing the file. Each Git worktree is a separate checkout, so place `.env.local` in whichever worktree runs the app.
 
-`.env.local` is covered by this repository's `.gitignore`. Keep the key out of commits, PR descriptions, screenshots, browser code, and client-side environment variables. Do not paste it into chat or a terminal command whose output you plan to share. The route sends it only in the upstream `Authorization: Bearer` header to TypeSafe's System One API. If the key is absent, a valid decision request returns `503` with `jev_not_configured`; it does not call TypeSafe. An invalid request is rejected before the key is checked. The current home page is a placeholder, so local play through the browser is not available until the interface tasks are implemented; the route and its credential handling are already implemented.
+`.env.local` is covered by this repository's `.gitignore`. Keep the key out of commits, PR descriptions, screenshots, browser code, and client-side environment variables. Do not paste it into chat or a terminal command whose output you plan to share. The route sends it only in the upstream `Authorization: Bearer` header to TypeSafe's System One API. If the key is absent, a valid decision request returns `503` with `jev_not_configured`; it does not call TypeSafe. An invalid request is rejected before the key is checked. The split-screen view is available locally; keyboard controls and detailed decision facts arrive in tasks 5.2 and 5.3.
 
 ### Available commands
 
@@ -127,7 +127,7 @@ The pure match state and transitions live in [`src/game/match.ts`](src/game/matc
 
 The serializable match-session state and transitions live in [`src/game/match-session.ts`](src/game/match-session.ts). A session begins in `ready`; start moves it to `playing`. Pause and resume change only the phase, preserving the core, boards, active pieces, round, and seeded sequence. Restart receives a fresh seed from its caller, creates a clean core, clears the result, and begins playing immediately.
 
-`tickMatchSession(state)` is a pure transition with no browser timer. It ignores ticks while the session is ready, paused, or finished. While playing, it applies one shared gravity tick, ends with a win when one player tops out or a draw when both top out in the same gravity event, and advances as soon as both players lock. It also resolves single or simultaneous top-outs caused by spawning the next shared piece. The client layer will schedule `MATCH_GRAVITY_INTERVAL_MS` ticks and connect these transitions to browser controls in a later task.
+`tickMatchSession(state)` is a pure transition with no browser timer. It ignores ticks while the session is ready, paused, or finished. While playing, it applies one shared gravity tick, ends with a win when one player tops out or a draw when both top out in the same gravity event, and advances as soon as both players lock. It also resolves single or simultaneous top-outs caused by spawning the next shared piece. The client view schedules one `MATCH_GRAVITY_INTERVAL_MS` interval while playing; keyboard input is added in task 5.2.
 
 ## Jev decision route
 
@@ -160,7 +160,15 @@ Failures preserve the same paused session and snapshot. Only an explicit user re
 
 Completion locks Jev and uses `settleMatchSession` to resolve top-out and the round barrier without applying gravity to the human. If the human has already locked, the next shared piece spawns once; otherwise the human continues its current piece. The result retains canonical board effects and probabilities for the later decision panel.
 
-The future UI must keep both keyboard actions and the shared clock gated while a decision is pending or requires retry, and must not expose generic resume as a way around that pause. These browser integrations and visible pending/error controls remain tasks 5.1–5.4; the home page is still a placeholder. Current verification uses mocked HTTP responses, with no live TypeSafe credential or service verification.
+The match view gates the shared clock while a decision is pending or requires retry and does not offer generic resume in those states. It shows pending and retry status and offers an explicit same-snapshot retry. Keyboard actions and the detailed decision panel remain tasks 5.2 and 5.3. Current route tests use mocked HTTP responses; the UI was visually checked without sending a live TypeSafe decision.
+
+## Split-screen match view
+
+[`src/client/match-app.tsx`](src/client/match-app.tsx) owns the browser session and Jev decision coordinator. Start, pause, resume, retry, and new-match buttons call the existing pure transitions. Each new match receives a fresh seed and unique match ID; each round's Jev decision has a distinct ID so late responses from an earlier attempt or match are ignored. The browser makes one same-origin request per pending attempt and aborts it when that attempt is replaced. If it cannot prepare a legal Jev decision, it pauses the match and shows a stopped state rather than advancing Jev through gravity.
+
+[`src/client/board-view.tsx`](src/client/board-view.tsx) draws each player's settled cells and active piece from the shared engine. It renders only the 20 visible rows. `peekNextPiece` previews the next shared piece without consuming the seven-bag, including at a bag boundary. Both boards and the round, current piece, upcoming piece, player labels, and ready/playing/paused/Jev pending/retry/finished states are visible.
+
+At desktop width, [`app/globals.css`](app/globals.css) uses two equal-width columns. The human region fills the left 50%; the right column uses a 70/30 row split for a Jev region of 35% and a decision/status region of 15%. A desktop browser viewport check confirmed both boards visible and the area split. Below 950 px the regions stack vertically. The panel currently shows match status and available actions; choice probabilities and calculated outcomes follow in task 5.3. Keyboard movement follows in task 5.2.
 
 ## Development workflow
 

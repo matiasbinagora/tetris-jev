@@ -116,6 +116,13 @@ export function createMatchCore(seed: number): MatchCoreState {
   };
 }
 
+/** Preview the next shared piece without consuming the current bag or PRNG state. */
+export function peekNextPiece(state: MatchCoreState): PieceType {
+  return state.bagIndex < state.bag.length
+    ? state.bag[state.bagIndex]
+    : shuffleBag(state.randomState).bag[0];
+}
+
 function tickMovingPlayer(player: MatchPlayerState): MatchPlayerState {
   if (player.activePiece === null || player.lockedThisRound) {
     return player;
