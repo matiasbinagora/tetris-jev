@@ -50,4 +50,4 @@
 - [x] Add a JSDOM component test for board focus, movement/scroll prevention, native button activation, and the focus boundary.
 - [x] Manually verify focus behavior in a desktop browser.
 - [x] Run the full test suite, lint, typecheck, production build, strict OpenSpec validation, and `git diff --check`.
-- [ ] Commit task 5.2, request one independent final review, push the branch, and open its PR against `main`.
+- [x] Commit task 5.2, request one independent final review, push the branch, and open its PR against `main`.
