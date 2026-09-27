@@ -11,18 +11,11 @@ import {
   type Rotation,
 } from '../game/engine';
 
-export interface SubmittedLanding {
-  id: string;
-  lockedPiece: ActivePiece;
-}
-
-export interface JevDecisionRequest {
-  board: Board;
-  piece: ActivePiece;
-  candidates: SubmittedLanding[];
-}
+import type { SubmittedLanding, JevDecisionResult, JevTokenUsage } from '../game/jev-decision-contract';
+export type { SubmittedLanding, JevDecisionRequest, JevDecisionResult, JevTokenUsage } from '../game/jev-decision-contract';
 
 export interface ValidatedJevDecision {
+  seed: number;
   board: Board;
   piece: ActivePiece;
   candidates: LandingCandidate[];
@@ -40,25 +33,18 @@ export interface JevChoicePayload {
   };
 }
 
-export interface JevTokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-}
-
-export interface JevDecisionResult {
-  choice: string;
-  selectedCandidate: LandingCandidate;
-  probabilities: Record<string, number>;
-  usage?: JevTokenUsage;
-}
-
 const MAX_CANDIDATES = 255;
 
 /** Validates untrusted route input and replaces submitted candidates with canonical engine results. */
 export function validateJevDecisionRequest(
   value: unknown,
 ): ValidatedJevDecision | null {
-  if (!isRecord(value) || !isBoard(value.board) || !isActivePiece(value.piece)) {
+  if (
+    !isRecord(value) ||
+    typeof value.seed !== 'number' ||
+    !Number.isInteger(value.seed) || value.seed < 0 || value.seed > 0xffffffff ||
+    !isBoard(value.board) || !isActivePiece(value.piece)
+  ) {
     return null;
   }
 
@@ -110,7 +96,7 @@ export function validateJevDecisionRequest(
     return null;
   }
 
-  return { board, piece, candidates };
+  return { seed: value.seed, board, piece, candidates };
 }
 
 /** Builds TypeSafe's choice criteria from canonical engine candidates only. */
