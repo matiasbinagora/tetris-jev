@@ -22,6 +22,7 @@ import {
 } from '../game/match-session';
 import { applyHumanGameAction } from '../game/human-controls';
 import { MATCH_GRAVITY_INTERVAL_MS, peekNextPiece } from '../game/match';
+import { JevDecisionPanel, type CompletedDecisionFacts } from './jev-decision-panel';
 
 interface ViewState {
   session: MatchSessionState;
@@ -29,6 +30,7 @@ interface ViewState {
   completedDecisions: number;
   matchId: string;
   decisionSetupFailed: boolean;
+  lastDecision: CompletedDecisionFacts | null;
 }
 
 const INITIAL_SEED = 20260927;
@@ -41,7 +43,12 @@ function freshSeed(previous: number): number {
   return seed;
 }
 
-function beginJevIfActive(session: MatchSessionState, completedDecisions: number, matchId: string): ViewState {
+function beginJevIfActive(
+  session: MatchSessionState,
+  completedDecisions: number,
+  matchId: string,
+  lastDecision: CompletedDecisionFacts | null,
+): ViewState {
   const needsDecision = session.phase === 'playing' && session.core.jev.activePiece !== null;
   const decision =
     needsDecision
@@ -53,6 +60,7 @@ function beginJevIfActive(session: MatchSessionState, completedDecisions: number
     completedDecisions,
     matchId,
     decisionSetupFailed: needsDecision && decision === null,
+    lastDecision,
   };
 }
 
@@ -94,6 +102,7 @@ export function MatchApp() {
     completedDecisions: 0,
     matchId: 'ready',
     decisionSetupFailed: false,
+    lastDecision: null,
   }));
 
   const decision = state.decision;
@@ -119,7 +128,13 @@ export function MatchApp() {
         if (next.status !== 'complete') {
           return { ...current, decision: next };
         }
-        return beginJevIfActive(next.session, current.completedDecisions + 1, current.matchId);
+        if (next.result === null) return { ...current, decision: next };
+        return beginJevIfActive(
+          next.session,
+          current.completedDecisions + 1,
+          current.matchId,
+          { snapshot: current.decision.snapshot, result: next.result },
+        );
       });
     });
 
@@ -133,7 +148,12 @@ export function MatchApp() {
     const interval = window.setInterval(() => {
       setState((current) => {
         if (current.session.phase !== 'playing' || current.decision !== null) return current;
-        return beginJevIfActive(tickMatchSession(current.session), current.completedDecisions, current.matchId);
+        return beginJevIfActive(
+          tickMatchSession(current.session),
+          current.completedDecisions,
+          current.matchId,
+          current.lastDecision,
+        );
       });
     }, MATCH_GRAVITY_INTERVAL_MS);
     return () => window.clearInterval(interval);
@@ -210,7 +230,7 @@ export function MatchApp() {
                 if (current.decision !== null || current.decisionSetupFailed) return current;
                 const session = applyHumanGameAction(current.session, action);
                 if (session === current.session) return current;
-                return beginJevIfActive(session, current.completedDecisions, current.matchId);
+                return beginJevIfActive(session, current.completedDecisions, current.matchId, current.lastDecision);
               }),
               () => setState((current) => {
                 if (current.decision !== null || current.decisionSetupFailed) return current;
@@ -273,7 +293,9 @@ export function MatchApp() {
               {state.session.phase === 'ready' && (
                 <button type="button" className="action-button" onClick={() => {
                   const matchId = crypto.randomUUID();
-                  setState((current) => beginJevIfActive(startMatchSession(current.session), current.completedDecisions, matchId));
+                  setState((current) => beginJevIfActive(
+                    startMatchSession(current.session), current.completedDecisions, matchId, null,
+                  ));
                 }}>Start match <span aria-hidden="true">↗</span></button>
               )}
               {state.session.phase === 'playing' && state.decision === null && (
@@ -289,11 +311,14 @@ export function MatchApp() {
                 <button type="button" className="text-button" onClick={() => {
                   const matchId = crypto.randomUUID();
                   const seed = freshSeed(state.session.core.seed);
-                  setState(() => beginJevIfActive(restartMatchSession(seed), 0, matchId));
+                  setState(() => beginJevIfActive(restartMatchSession(seed), 0, matchId, null));
                 }}>New match</button>
               )}
             </div>
           </div>
+          <JevDecisionPanel
+            facts={state.decision === null && !state.decisionSetupFailed ? state.lastDecision : null}
+          />
           <div className="decision-footer"><span>Jev decisions completed</span><strong>{String(state.completedDecisions).padStart(2, '0')}</strong></div>
         </section>
       </div>
