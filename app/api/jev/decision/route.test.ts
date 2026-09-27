@@ -138,7 +138,7 @@ describe('POST /api/jev/decision', () => {
     );
   });
 
-  it('omits absent and malformed optional usage metadata without fabricating values', async () => {
+  it('maps valid zero usage and omits absent or malformed optional usage', async () => {
     const body = createValidRequestBody();
     const selectedId = body.candidates[0]!.id;
     const validCandidates = enumerateLegalLandingCandidates(body.board, body.piece);
@@ -155,14 +155,34 @@ describe('POST /api/jev/decision', () => {
 
     upstreamFetch.mockResolvedValueOnce(
       choiceResponse(selectedId, {
-        usage: { input_tokens: 4.5, output_tokens: -1 },
+        usage: { input_tokens: 4.5, output_tokens: 12 },
       }),
     );
-    const malformedUsageResponse = await POST(createJsonRequest(body));
-    const malformedUsageBody = await malformedUsageResponse.json();
-    expect(malformedUsageResponse.status).toBe(200);
-    expect(malformedUsageBody).not.toHaveProperty('usage');
-    expect(malformedUsageBody.selectedCandidate).toEqual(validCandidates[0]);
+    const fractionalInputResponse = await POST(createJsonRequest(body));
+    const fractionalInputBody = await fractionalInputResponse.json();
+    expect(fractionalInputResponse.status).toBe(200);
+    expect(fractionalInputBody).not.toHaveProperty('usage');
+
+    upstreamFetch.mockResolvedValueOnce(
+      choiceResponse(selectedId, {
+        usage: { input_tokens: 120, output_tokens: -1 },
+      }),
+    );
+    const negativeOutputResponse = await POST(createJsonRequest(body));
+    const negativeOutputBody = await negativeOutputResponse.json();
+    expect(negativeOutputResponse.status).toBe(200);
+    expect(negativeOutputBody).not.toHaveProperty('usage');
+    expect(negativeOutputBody.selectedCandidate).toEqual(validCandidates[0]);
+
+    upstreamFetch.mockResolvedValueOnce(
+      choiceResponse(selectedId, {
+        usage: { input_tokens: 0, output_tokens: 0 },
+      }),
+    );
+    const zeroUsageResponse = await POST(createJsonRequest(body));
+    const zeroUsageBody = await zeroUsageResponse.json();
+    expect(zeroUsageResponse.status).toBe(200);
+    expect(zeroUsageBody.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
   });
 
   it('rejects incomplete probabilities with a generic error and no upstream detail', async () => {

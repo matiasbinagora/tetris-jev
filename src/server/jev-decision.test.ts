@@ -270,15 +270,40 @@ describe('mapJevDecisionResponse', () => {
     const validated = validateJevDecisionRequest(request)!;
     const missingUsage = createValidTypeSafeResponse(candidates);
     delete missingUsage.usage;
-    const malformedUsage = {
-      ...createValidTypeSafeResponse(candidates),
-      usage: { input_tokens: 1.5, output_tokens: -2 },
-    };
 
     expect(mapJevDecisionResponse(validated, missingUsage)).not.toHaveProperty(
       'usage',
     );
-    expect(mapJevDecisionResponse(validated, malformedUsage)).not.toHaveProperty(
+  });
+
+  it('maps zero token counts as valid usage', () => {
+    const { request, candidates } = createValidRequest();
+    const validated = validateJevDecisionRequest(request)!;
+    const response = {
+      ...createValidTypeSafeResponse(candidates),
+      usage: { input_tokens: 0, output_tokens: 0 },
+    };
+
+    expect(mapJevDecisionResponse(validated, response)?.usage).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+    });
+  });
+
+  it.each([
+    ['fractional input token count', { input_tokens: 1.5, output_tokens: 12 }],
+    ['negative output token count', { input_tokens: 120, output_tokens: -1 }],
+    ['missing input token count', { output_tokens: 12 }],
+    ['missing output token count', { input_tokens: 120 }],
+  ])('omits malformed usage with %s', (_caseName, usage) => {
+    const { request, candidates } = createValidRequest();
+    const validated = validateJevDecisionRequest(request)!;
+    const response = {
+      ...createValidTypeSafeResponse(candidates),
+      usage,
+    };
+
+    expect(mapJevDecisionResponse(validated, response)).not.toHaveProperty(
       'usage',
     );
   });
@@ -373,6 +398,24 @@ describe('mapJevDecisionResponse', () => {
           [Object.keys(
             answers.placement.probabilities as Record<string, number>,
           )[0]!]: Number.NaN,
+        };
+        return {
+          ...response,
+          answers: { placement: { ...answers.placement, probabilities } },
+        };
+      },
+    ],
+    [
+      'infinite probability',
+      (response: Record<string, unknown>) => {
+        const answers = response.answers as {
+          placement: Record<string, unknown>;
+        };
+        const probabilities = {
+          ...(answers.placement.probabilities as Record<string, number>),
+          [Object.keys(
+            answers.placement.probabilities as Record<string, number>,
+          )[0]!]: Number.POSITIVE_INFINITY,
         };
         return {
           ...response,
