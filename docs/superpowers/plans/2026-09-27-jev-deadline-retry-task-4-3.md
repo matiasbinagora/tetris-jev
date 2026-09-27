@@ -122,7 +122,7 @@ git commit -m "feat: pause and retry Jev decisions with an eight-second deadline
 
 Expected: all tests/checks pass, OpenSpec reports 10/19 complete, and the worktree contains only the planned task changes.
 
-- [ ] Request one independent whole-branch review. Fix material findings, update PR #11 with implementation and validation evidence, and mark it ready for the user's manual merge.
+- [x] Request one independent whole-branch review. Fix material findings, update PR #11 with implementation and validation evidence, and mark it ready for the user's manual merge.
 
 ## Verification and final review
 
