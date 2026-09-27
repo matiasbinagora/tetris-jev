@@ -40,39 +40,41 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError('jev_not_configured', 503);
   }
 
-  let upstream: Response;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const controller = new AbortController();
+  const deadline = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      resolve(null);
+    }, 8000);
+  });
+
   try {
-    upstream = await fetch(TYPE_SAFE_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(buildJevChoicePayload(validated)),
-      cache: 'no-store',
-      redirect: 'error',
-    });
+    const operation = async (): Promise<unknown> => {
+      const upstream = await fetch(TYPE_SAFE_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(buildJevChoicePayload(validated)),
+        cache: 'no-store',
+        redirect: 'error',
+        signal: controller.signal,
+      });
+      if (!upstream.ok) return null;
+      return await upstream.json();
+    };
+    const responseData = await Promise.race([operation(), deadline]);
+    const mappedResponse = mapJevDecisionResponse(validated, responseData);
+    return mappedResponse
+      ? Response.json(mappedResponse)
+      : jsonError('jev_upstream_failed', 502);
   } catch {
     return jsonError('jev_upstream_failed', 502);
+  } finally {
+    clearTimeout(timer);
   }
-
-  if (!upstream.ok) {
-    return jsonError('jev_upstream_failed', 502);
-  }
-
-  let responseData: unknown;
-  try {
-    responseData = await upstream.json();
-  } catch {
-    return jsonError('jev_upstream_failed', 502);
-  }
-
-  const mappedResponse = mapJevDecisionResponse(validated, responseData);
-  if (!mappedResponse) {
-    return jsonError('jev_upstream_failed', 502);
-  }
-
-  return Response.json(mappedResponse);
 }
 
 async function readRequestBody(request: Request): Promise<BodyReadResult> {

@@ -47,7 +47,13 @@ export function restartMatchSession(freshSeed: number): MatchSessionState {
 export function tickMatchSession(state: MatchSessionState): MatchSessionState {
   if (state.phase !== 'playing') return state;
 
-  const tickedCore = applySharedGravityTick(state.core);
+  return settleMatchSession({ ...state, core: applySharedGravityTick(state.core) });
+}
+
+/** Resolve locks and the round barrier without applying gravity. */
+export function settleMatchSession(state: MatchSessionState): MatchSessionState {
+  if (state.phase !== 'playing') return state;
+  const tickedCore = state.core;
   const result = resultForTopOut(tickedCore);
   if (result !== null) {
     return { ...state, core: tickedCore, phase: 'finished', result };

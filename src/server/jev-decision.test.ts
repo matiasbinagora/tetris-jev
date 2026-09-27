@@ -23,6 +23,7 @@ function createValidRequest(): {
 
   return {
     request: {
+      seed: 123,
       board,
       piece,
       candidates: candidates.map(({ id, lockedPiece }) => ({ id, lockedPiece })),
@@ -53,6 +54,20 @@ function createValidTypeSafeResponse(
 }
 
 describe('validateJevDecisionRequest', () => {
+  it.each([undefined, null, '123', -1, 1.5, NaN, Infinity, 0x1_0000_0000])(
+    'rejects invalid seed %s', (seed) => {
+      const { request } = createValidRequest();
+      expect(validateJevDecisionRequest({ ...request, seed })).toBeNull();
+    },
+  );
+
+  it.each([0, 0xffffffff])('retains boundary seed %s without forwarding it', (seed) => {
+    const { request } = createValidRequest();
+    const validated = validateJevDecisionRequest({ ...request, seed })!;
+    expect(validated.seed).toBe(seed);
+    expect(buildJevChoicePayload(validated).state).not.toHaveProperty('seed');
+  });
+
   it('accepts the complete server-generated legal candidate set', () => {
     const { request, candidates } = createValidRequest();
 

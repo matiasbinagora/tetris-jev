@@ -35,10 +35,10 @@ Add a module under `src/game/` that models one Jev decision attempt independentl
 
 - a snapshot containing the seed, Jev board, active piece, and complete canonical `LandingCandidate[]` results, including their simulated boards and effects;
 - a status of `pending`, `retry-required`, or `complete`;
-- an attempt number to reject stale results from an earlier retry;
+- a caller-supplied unique decision ID and an attempt number to reject stale results from earlier retries or restarted matches;
 - the mapped result only after a valid response.
 
-Starting an attempt is allowed only while the match is playing and Jev has an active piece. It enumerates the legal candidates once, snapshots the request values, and pauses the shared session. Marking an attempt failed preserves the paused session and snapshot. Retrying is allowed only from `retry-required`, reuses the exact snapshot, and advances the attempt number. Only a response for the current attempt can complete the decision.
+Starting an attempt is allowed only while the match is playing and Jev has an active piece. It enumerates the legal candidates once, snapshots the request values, and pauses the shared session. Marking an attempt failed preserves the paused session and snapshot. Retrying is allowed only from `retry-required`, reuses the exact snapshot, and advances the attempt number. Only a response for the current decision ID and attempt can complete the decision. The host must supply a distinct ID for every new decision, including restarts with the same seed.
 
 The success transition resolves the returned `choice` only against candidates in the captured snapshot. It ignores any candidate simulation supplied by the response. It applies the canonical candidate's board and top-out state to Jev, marks Jev locked for the round, resolves single/double top-out consistently with `MatchSessionState`, and advances the round only when the human has also locked. A non-terminal match resumes playing; a terminal result remains finished. The successful response metadata remains available to the future decision panel.
 
@@ -65,7 +65,7 @@ playing
 - The TypeSafe API key remains server-only and is never logged or returned.
 - Retry requests include the same match seed and decision fields, but each request still contains only the server-validated board, piece, and candidates in the TypeSafe prompt. The captured `LandingCandidate[]` is serialized to the route as `{ id, lockedPiece }` pairs; its client-side canonical simulations are used only to apply the selected result safely.
 - Any timeout or unusable response leaves both board records and the shared seed/round unchanged.
-- A late response from a superseded attempt is ignored by its attempt number.
+- A late response from a superseded attempt is ignored by its decision ID and attempt number.
 - Only an explicit retry makes another upstream call; no local move is selected when Jev is unavailable.
 
 ## Testing

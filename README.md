@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, and server-side Jev decision route with response metadata are implemented. Two independent boards receive the same seeded seven-bag sequence and advance through shared 700 ms gravity ticks and a lock barrier. The home page is still a placeholder; Jev request deadlines and retries, browser controls and timer scheduling, and the playable interface remain pending.
+The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route with response metadata, and decision deadline/retry coordinator are implemented. Two independent boards receive the same seeded seven-bag sequence and advance through shared 700 ms gravity ticks and a lock barrier. The home page is still a placeholder; browser controls and timer scheduling, decision UI wiring, and the playable interface remain pending.
 
-OpenSpec implementation progress is **9 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, and 4.2). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **10 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, and 4.3). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -119,9 +119,36 @@ The serializable match-session state and transitions live in [`src/game/match-se
 
 ## Jev decision route
 
-`POST /api/jev/decision` is a same-origin Next.js Node.js Route Handler. It accepts the current board, active piece, and complete legal landing candidate set. The server validates the board dimensions and cells, active piece, candidate count, IDs, and exact landing poses by recomputing candidates with the shared game engine before making one typed `choice` request to the official TypeSafe System One endpoint. A successful response contains the verified candidate ID in `choice`, the canonical engine simulation in `selectedCandidate`, and the per-candidate `probabilities` returned by TypeSafe without normalization or rounding.
+`POST /api/jev/decision` is a same-origin Next.js Node.js Route Handler. It requires a uint32 integer `seed` (0 through 0xffffffff), the current board, active piece, and complete legal landing candidate set. The seed is retained for retry identity and is not sent to TypeSafe. The server validates the board dimensions and cells, active piece, candidate count, IDs, and exact landing poses by recomputing candidates with the shared game engine before making one typed `choice` request to the official TypeSafe System One endpoint. A successful response contains the verified candidate ID in `choice`, the canonical engine simulation in `selectedCandidate`, and the per-candidate `probabilities` returned by TypeSafe without normalization or rounding.
 
-The handler reads `JEV_API_KEY` only from its server environment and sends it as a Bearer credential. The key is never returned or logged. Invalid requests, an absent key, and upstream failures return small generic error responses. Valid TypeSafe token counts are mapped to `usage.inputTokens` and `usage.outputTokens`; `usage` is omitted when those counts are absent or malformed. The current API schema does not supply latency or cost, so the route does not estimate them. Request deadlines, retry behavior, and local `.env.local` instructions are tracked in later tasks. The deployment plan requires verifying Vercel Preview with its environment configuration before Production.
+The handler reads `JEV_API_KEY` only from its server environment and sends it as a Bearer credential. The key is never returned or logged. Invalid requests, an absent key, and upstream failures return small generic error responses. Valid TypeSafe token counts are mapped to `usage.inputTokens` and `usage.outputTokens`; `usage` is omitted when those counts are absent or malformed. The current API schema does not supply latency or cost, so the route does not estimate them. The route aborts upstream after eight seconds, covering both response headers and JSON body reading; timeout returns the same generic 502 error as other upstream failures. Local `.env.local` setup instructions are tracked in task 4.4. The deployment plan requires verifying Vercel Preview with its environment configuration before Production.
+
+## Decision pause and retry
+
+[`src/game/jev-decision-session.ts`](src/game/jev-decision-session.ts) wraps the generic match lifecycle with pure, serializable `pending`, `retry-required`, and `complete` decision states. `beginJevDecision(session, decisionId)` accepts a playing session with an active, unlocked Jev piece, clones the session, pauses both boards, and captures the seed, board, piece, full canonical candidates, and serialized POST body. The captured session and snapshot are recursively frozen. Invalid begin states return `null`.
+
+The host must supply a **distinct decision ID for every new decision**, including restarts with the same seed. Each attempt has a `{ decisionId, attempt }` token. Capture this token before awaiting HTTP and pass it back to completion/failure against the **latest** coordinator state. A stale token or duplicate completion is ignored. Restart must discard the old coordinator and create a new decision ID.
+
+[`requestJevDecision(snapshot, fetcher?, signal?)`](src/client/jev-decision-api.ts) makes one same-origin POST to `/api/jev/decision`. It returns either `{ ok: true, result }` or `{ ok: false, error: 'jev_request_failed' }`. It accepts an abort signal for view cleanup, performs no automatic retry, and uses no fallback decision maker. The eight-second deadline runs on the server; the browser adapter has no separate transport timer.
+
+```ts
+const initial = beginJevDecision(playingSession, crypto.randomUUID());
+if (initial) {
+  // Store initial as the current coordinator; gate keyboard/gravity while pending.
+  const token = initial.token;
+  const response = await requestJevDecision(initial.snapshot);
+  // In the host's state reducer, use its latest state, not the captured initial:
+  // response.ok
+  //   ? completeJevDecision(latest, token, response.result)
+  //   : failJevDecision(latest, token)
+}
+```
+
+Failures preserve the same paused session and snapshot. Only an explicit user retry calls `retryJevDecision(failed)` and sends its snapshot again; the POST body is byte-identical, including the seed, board, piece, and candidate list. A valid result must select a captured candidate and contain a finite probability in [0, 1] for every candidate with no extra keys. Probabilities are neither normalized nor rounded. Optional valid token counts are retained; malformed optional usage is omitted. The client ignores supplied board simulations and applies only its captured canonical outcome.
+
+Completion locks Jev and uses `settleMatchSession` to resolve top-out and the round barrier without applying gravity to the human. If the human has already locked, the next shared piece spawns once; otherwise the human continues its current piece. The result retains canonical board effects and probabilities for the later decision panel.
+
+The future UI must keep both keyboard actions and the shared clock gated while a decision is pending or requires retry, and must not expose generic resume as a way around that pause. These browser integrations and visible pending/error controls remain tasks 5.1–5.4; the home page is still a placeholder. Current verification uses mocked HTTP responses, with no live TypeSafe credential or service verification.
 
 ## Development workflow
 

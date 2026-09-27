@@ -59,6 +59,12 @@ Use the server environment variable `JEV_API_KEY`, as shown in the Jev API docum
 
 When a Jev piece starts, pause the shared match while the decision request is pending. Give the upstream request an eight-second deadline. On a valid result, apply the selected placement to Jev's board and resume both boards. On timeout, network failure, invalid choice, or upstream error, leave the match paused and offer retry with the same snapshot. This gives the user the approved pause-and-retry behavior and prevents either player's clock or board from advancing during an unresolved decision.
 
+### Task 4.3 decision coordination
+
+Require the normalized unsigned 32-bit match seed in every same-origin decision POST, validate it on the server, and omit it from the TypeSafe payload. Enforce the eight-second upstream deadline across both fetching and reading the response body, aborting upstream on timeout and returning the existing generic failure response.
+
+Keep a separate pure decision coordinator with a detached snapshot of the paused session and canonical candidates. Serialize the POST body once and reuse it on explicit retry. Guard both success and failure with a caller-supplied unique decision ID and an attempt number; the caller must issue a new ID for every new decision, including restarts using the same seed. Apply only a captured canonical candidate and settle top-out/round progression without applying an extra gravity tick. A small client adapter performs one same-origin POST per attempt; visible state and browser event wiring remain with the interface tasks.
+
 ### Render the approved layout with CSS Grid
 
 Use equal-width viewport columns. The left column is the human area. Divide the right column into a 70% upper board region and a 30% lower decision region, which yields the approved 50/35/15 total viewport-area allocation. Scale the 10 by 20 board within its region while preserving cell proportions. Keep board labels, status, controls, and decision metrics visible in the surrounding region.

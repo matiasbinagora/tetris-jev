@@ -12,6 +12,7 @@ const previousApiKey = process.env.JEV_API_KEY;
 const upstreamFetch = vi.fn<typeof fetch>();
 
 function createValidRequestBody(): {
+  seed: number;
   board: Board;
   piece: ActivePiece;
   candidates: { id: string; lockedPiece: ActivePiece }[];
@@ -21,6 +22,7 @@ function createValidRequestBody(): {
   const candidates = enumerateLegalLandingCandidates(board, piece);
 
   return {
+    seed: 123,
     board,
     piece,
     candidates: candidates.map(({ id, lockedPiece }) => ({ id, lockedPiece })),
@@ -79,6 +81,53 @@ function choiceResponse(
 }
 
 describe('POST /api/jev/decision', () => {
+  it.each(['headers', 'body'])('enforces the deadline while waiting for %s', async (stage) => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | null | undefined;
+    upstreamFetch.mockImplementation((_url, init) => {
+      signal = init?.signal;
+      if (stage === 'headers') return new Promise(() => {});
+      const response = new Response('{}', { status: 200 });
+      vi.spyOn(response, 'json').mockImplementation(() => new Promise(() => {}));
+      return Promise.resolve(response);
+    });
+    let settled = false;
+    const pending = POST(createJsonRequest(createValidRequestBody())).then((response) => {
+      settled = true;
+      return response;
+    });
+    await vi.advanceTimersByTimeAsync(7999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(settled).toBe(true);
+    expect(signal?.aborted).toBe(true);
+    const response = await pending;
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: 'jev_upstream_failed' });
+    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('clears its deadline after a successful response', async () => {
+    vi.useFakeTimers();
+    const body = createValidRequestBody();
+    upstreamFetch.mockResolvedValueOnce(choiceResponse(body.candidates[0]!.id));
+    expect((await POST(createJsonRequest(body))).status).toBe(200);
+    expect(vi.getTimerCount()).toBe(0);
+    const signal = upstreamFetch.mock.calls[0]![1]!.signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    await vi.advanceTimersByTimeAsync(8000);
+    expect(signal?.aborted).toBe(false);
+  });
+
+  it('rejects a missing seed without an upstream request', async () => {
+    const body: Record<string, unknown> = createValidRequestBody();
+    delete body.seed;
+    upstreamFetch.mockResolvedValueOnce(choiceResponse(createValidRequestBody().candidates[0]!.id));
+    expect((await POST(createJsonRequest(body))).status).toBe(400);
+    expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     process.env.JEV_API_KEY = API_KEY_SENTINEL;
     upstreamFetch.mockReset();
@@ -86,6 +135,7 @@ describe('POST /api/jev/decision', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     if (previousApiKey === undefined) {
       delete process.env.JEV_API_KEY;
