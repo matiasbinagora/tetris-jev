@@ -108,6 +108,30 @@ describe('POST /api/jev/decision', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('aborts a streaming non-success response before clearing the deadline', async () => {
+    vi.useFakeTimers();
+    const aborted = vi.fn();
+    upstreamFetch.mockImplementation((_url, init) => {
+      const body = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('private upstream error'));
+          init?.signal?.addEventListener('abort', () => {
+            aborted();
+            controller.error(new DOMException('Aborted', 'AbortError'));
+          }, { once: true });
+        },
+      });
+      return Promise.resolve(new Response(body, { status: 503 }));
+    });
+    const response = await POST(createJsonRequest(createValidRequestBody()));
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: 'jev_upstream_failed' });
+    expect(aborted).toHaveBeenCalledTimes(1);
+    expect(upstreamFetch.mock.calls[0]![1]!.signal?.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('clears its deadline after a successful response', async () => {
     vi.useFakeTimers();
     const body = createValidRequestBody();

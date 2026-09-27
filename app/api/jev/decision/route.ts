@@ -62,7 +62,11 @@ export async function POST(request: Request): Promise<Response> {
         redirect: 'error',
         signal: controller.signal,
       });
-      if (!upstream.ok) return null;
+      if (!upstream.ok) {
+        // Stop unread error bodies before clearing the deadline.
+        controller.abort();
+        return null;
+      }
       return await upstream.json();
     };
     const responseData = await Promise.race([operation(), deadline]);
