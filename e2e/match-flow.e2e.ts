@@ -10,14 +10,14 @@ interface MockDecisionResponse {
   body: Record<string, unknown>;
 }
 
-type DecisionResponder = (request: JevDecisionRequest, requestNumber: number) => MockDecisionResponse;
+type DecisionResponder = (request: JevDecisionRequest, requestNumber: number) => MockDecisionResponse | Promise<MockDecisionResponse>;
 
 async function mockJevDecisionRoute(page: Page, respond: DecisionResponder): Promise<JevDecisionRequest[]> {
   const requests: JevDecisionRequest[] = [];
   await page.route('**/api/jev/decision', async (route) => {
     const request = route.request().postDataJSON() as JevDecisionRequest;
     requests.push(request);
-    const response = respond(request, requests.length);
+    const response = await respond(request, requests.length);
     await route.fulfill({
       status: response.status,
       contentType: 'application/json',
@@ -38,11 +38,15 @@ function successfulChoice(request: JevDecisionRequest): MockDecisionResponse {
 }
 
 test('starts a match, retries the same Jev decision, advances a round, pauses, resumes, and restarts', async ({ page }) => {
-  const requests = await mockJevDecisionRoute(page, (request, requestNumber) =>
-    requestNumber === 1
-      ? { status: 502, body: { error: 'jev_request_failed' } }
-      : successfulChoice(request),
-  );
+  let releaseRestartDecision!: () => void;
+  const restartDecisionGate = new Promise<void>((resolve) => {
+    releaseRestartDecision = resolve;
+  });
+  const requests = await mockJevDecisionRoute(page, async (request, requestNumber) => {
+    if (requestNumber === 1) return { status: 502, body: { error: 'jev_request_failed' } };
+    if (requestNumber === 4) await restartDecisionGate;
+    return successfulChoice(request);
+  });
 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Ready' })).toBeVisible();
@@ -70,9 +74,14 @@ test('starts a match, retries the same Jev decision, advances a round, pauses, r
   const originalSeed = requests[0].seed;
   await page.getByRole('button', { name: 'New match' }).click();
   await expect(page.locator('.round-indicator')).toHaveText('ROUND 01');
-  await expect(page.getByText('Waiting for you', { exact: true })).toBeVisible();
   await expect.poll(() => requests.length).toBe(4);
+  await expect(page.getByRole('heading', { name: 'Jev deciding' })).toBeVisible();
+  await expect(page.locator('.decision-footer strong')).toHaveText('00');
   expect(requests[3].seed).not.toBe(originalSeed);
+
+  releaseRestartDecision();
+  await expect(page.getByText('Waiting for you', { exact: true })).toBeVisible();
+  await expect(page.locator('.decision-footer strong')).toHaveText('01');
 });
 
 test('finishes a match after the human uses hard drop through the shared rounds', async ({ page }) => {

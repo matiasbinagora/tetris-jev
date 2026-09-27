@@ -78,7 +78,7 @@ export default defineConfig({
 
 In `e2e/match-flow.e2e.ts`, define a JSON request shape with `seed` and `candidates: { id: string }[]`. The success helper must return `choice: body.candidates[0].id` and a finite `probabilities` object with one value for every posted ID. Route all requests before `page.goto('/')`.
 
-Write a test that queues an initial `502` and then successful replies; start the match, assert `Retry required`, click `Retry Jev`, assert the selected fact panel appears and exactly two request bodies are equal. Hard-drop the human piece and assert `ROUND 02`. Pause and resume, then click `New match`, assert the round resets to `ROUND 01`, and assert the restarted request has a different seed from the original.
+Write a test that queues an initial `502` and then successful replies; start the match, assert `Retry required`, click `Retry Jev`, assert the selected fact panel appears and exactly two request bodies are equal. Hard-drop the human piece and assert `ROUND 02`. Pause and resume, then click `New match`, assert the round resets to `ROUND 01`, and hold the mocked decision pending to assert the completion counter is `00` and the restarted request has a different seed from the original. Release the mocked decision and assert the counter increments to `01` after completion.
 
 - [x] **Step 4: Add the match-result E2E test**
 
