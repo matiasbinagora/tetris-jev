@@ -33,6 +33,6 @@
 ## 6. Vercel readiness and integration
 
 - [x] 6.1 Document Vercel Preview and Production environment setup for `JEV_API_KEY` and the Preview-before-Production workflow; verify the README clearly distinguishes local, Preview, and Production configuration.
-- [ ] 6.2 Connect the application to a Vercel project after the folder is a Git repository, configure Preview variables, and deploy a Preview build; verify the UI and Jev route work and no API key appears in browser-visible assets or responses.
+- [x] 6.2 Connect the application to a Vercel project after the folder is a Git repository, configure Preview variables, and deploy a Preview build; verify the UI and Jev route work and no API key appears in browser-visible assets or responses.
 - [ ] 6.3 Configure Production variables and deploy only after Preview verification; verify the Production game can complete a Jev decision and fails safely when the server credential is unavailable.
 - [ ] 6.4 Run the complete lint, test, type-check, production-build, and OpenSpec validation commands; verify each succeeds before considering the change ready to archive.
