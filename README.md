@@ -6,7 +6,7 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route with response metadata, and decision deadline/retry coordinator are implemented. Two independent boards receive the same seeded seven-bag sequence and advance through shared 700 ms gravity ticks and a lock barrier. The home page is still a placeholder; browser controls and timer scheduling, decision UI wiring, and the playable interface remain pending.
 
-OpenSpec implementation progress is **10 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, and 4.3). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **11 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, and 4.4). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -23,6 +23,18 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+### Configure Jev locally
+
+Create an API key in the [TypeSafe console](https://console.typesafe.ai/keys). In the root of the checkout where you run Next.js (beside `package.json`), create a file named `.env.local` containing:
+
+```dotenv
+JEV_API_KEY=your_typesafe_api_key_here
+```
+
+Replace the placeholder with your own key. Keep the variable name exactly `JEV_API_KEY`; do not add a `NEXT_PUBLIC_` prefix. Next.js loads `.env.local` into the server environment when you run `npm run dev`, and the Node.js Route Handler reads `process.env.JEV_API_KEY` for `POST /api/jev/decision`. Start or restart the development server after creating or changing the file. Each Git worktree is a separate checkout, so place `.env.local` in whichever worktree runs the app.
+
+`.env.local` is covered by this repository's `.gitignore`. Keep the key out of commits, PR descriptions, screenshots, browser code, and client-side environment variables. Do not paste it into chat or a terminal command whose output you plan to share. The route sends it only in the upstream `Authorization: Bearer` header to TypeSafe's System One API. If the key is absent, a valid decision request returns `503` with `jev_not_configured`; it does not call TypeSafe. An invalid request is rejected before the key is checked. The current home page is a placeholder, so local play through the browser is not available until the interface tasks are implemented; the route and its credential handling are already implemented.
 
 ### Available commands
 
@@ -121,7 +133,7 @@ The serializable match-session state and transitions live in [`src/game/match-se
 
 `POST /api/jev/decision` is a same-origin Next.js Node.js Route Handler. It requires a uint32 integer `seed` (0 through 0xffffffff), the current board, active piece, and complete legal landing candidate set. The seed is retained for retry identity and is not sent to TypeSafe. The server validates the board dimensions and cells, active piece, candidate count, IDs, and exact landing poses by recomputing candidates with the shared game engine before making one typed `choice` request to the official TypeSafe System One endpoint. A successful response contains the verified candidate ID in `choice`, the canonical engine simulation in `selectedCandidate`, and the per-candidate `probabilities` returned by TypeSafe without normalization or rounding.
 
-The handler reads `JEV_API_KEY` only from its server environment and sends it as a Bearer credential. The key is never returned or logged. Invalid requests, an absent key, and upstream failures return small generic error responses. Valid TypeSafe token counts are mapped to `usage.inputTokens` and `usage.outputTokens`; `usage` is omitted when those counts are absent or malformed. The current API schema does not supply latency or cost, so the route does not estimate them. The route aborts upstream after eight seconds, covering both response headers and JSON body reading; timeout returns the same generic 502 error as other upstream failures. Local `.env.local` setup instructions are tracked in task 4.4. The deployment plan requires verifying Vercel Preview with its environment configuration before Production.
+The handler reads `JEV_API_KEY` only from its server environment and sends it as a Bearer credential. The key is never returned or logged. Invalid requests, an absent key, and upstream failures return small generic error responses. Valid TypeSafe token counts are mapped to `usage.inputTokens` and `usage.outputTokens`; `usage` is omitted when those counts are absent or malformed. The current API schema does not supply latency or cost, so the route does not estimate them. The route aborts upstream after eight seconds, covering both response headers and JSON body reading; timeout returns the same generic 502 error as other upstream failures. Local setup is described above; Vercel Preview and Production configuration is a later task.
 
 ## Decision pause and retry
 
