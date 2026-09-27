@@ -75,4 +75,27 @@ describe('MatchApp keyboard focus boundary', () => {
     expect(outsideEvent.defaultPrevented).toBe(false);
     expect(activeVisibleCells(humanBoard)).toEqual(afterSoftDrop);
   });
+
+  it('keeps the completed Jev decision facts visible after the round barrier advances', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as { candidates: Array<{ id: string }> };
+      return Response.json({
+        choice: body.candidates[0].id,
+        probabilities: Object.fromEntries(body.candidates.map(({ id }, index) => [id, index === 0 ? 0.625 : 0.125])),
+      });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    vi.stubGlobal('crypto', { randomUUID: () => 'decision-panel-match' });
+    const user = userEvent.setup();
+    render(<MatchApp />);
+
+    await user.click(screen.getByRole('button', { name: /start match/i }));
+    expect(await screen.findByText('Waiting for you')).not.toBeNull();
+    expect(await screen.findByRole('region', { name: 'Jev decision facts' })).not.toBeNull();
+    expect(screen.getByText('Selected')).not.toBeNull();
+    expect(screen.getByText('62.5%')).not.toBeNull();
+    expect(screen.getByText('Token usage unavailable')).not.toBeNull();
+    expect(screen.getByText('Latency unavailable')).not.toBeNull();
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
 });

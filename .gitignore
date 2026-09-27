@@ -6,6 +6,7 @@ coverage/
 playwright-report/
 test-results/
 .vercel/
+.superpowers/
 .env*
 !.env.example
 *.tsbuildinfo

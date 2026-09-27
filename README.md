@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, and focused keyboard controls are implemented. The browser shows both boards, starts the shared 700 ms clock, pauses during Jev decisions, and accepts keyboard input after the human board receives focus. Detailed decision probabilities and full browser-flow coverage remain pending.
+The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, focused keyboard controls, and Jev decision facts panel are implemented. The browser shows both boards, starts the shared 700 ms clock, pauses during Jev decisions, accepts keyboard input after the human board receives focus, and retains the last completed Jev selection and calculated outcomes during the human turn. Broader browser-flow coverage remains pending.
 
-OpenSpec implementation progress is **13 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 5.1, and 5.2). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **14 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, and 5.3). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -34,7 +34,7 @@ JEV_API_KEY=your_typesafe_api_key_here
 
 Replace the placeholder with your own key. Keep the variable name exactly `JEV_API_KEY`; do not add a `NEXT_PUBLIC_` prefix. Next.js loads `.env.local` into the server environment when you run `npm run dev`, and the Node.js Route Handler reads `process.env.JEV_API_KEY` for `POST /api/jev/decision`. Start or restart the development server after creating or changing the file. Each Git worktree is a separate checkout, so place `.env.local` in whichever worktree runs the app.
 
-`.env.local` is covered by this repository's `.gitignore`. Keep the key out of commits, PR descriptions, screenshots, browser code, and client-side environment variables. Do not paste it into chat or a terminal command whose output you plan to share. The route sends it only in the upstream `Authorization: Bearer` header to TypeSafe's System One API. If the key is absent, a valid decision request returns `503` with `jev_not_configured`; it does not call TypeSafe. An invalid request is rejected before the key is checked. The split-screen view and keyboard controls are available locally; detailed decision facts arrive in task 5.3.
+`.env.local` is covered by this repository's `.gitignore`. Keep the key out of commits, PR descriptions, screenshots, browser code, and client-side environment variables. Do not paste it into chat or a terminal command whose output you plan to share. The route sends it only in the upstream `Authorization: Bearer` header to TypeSafe's System One API. If the key is absent, a valid decision request returns `503` with `jev_not_configured`; it does not call TypeSafe. An invalid request is rejected before the key is checked. The split-screen view, keyboard controls, and calculated decision facts are available locally.
 
 ### Available commands
 
@@ -158,9 +158,9 @@ if (initial) {
 
 Failures preserve the same paused session and snapshot. Only an explicit user retry calls `retryJevDecision(failed)` and sends its snapshot again; the POST body is byte-identical, including the seed, board, piece, and candidate list. A valid result must select a captured candidate and contain a finite probability in [0, 1] for every candidate with no extra keys. Probabilities are neither normalized nor rounded. Optional valid token counts are retained; malformed optional usage is omitted. The client ignores supplied board simulations and applies only its captured canonical outcome.
 
-Completion locks Jev and uses `settleMatchSession` to resolve top-out and the round barrier without applying gravity to the human. If the human has already locked, the next shared piece spawns once; otherwise the human continues its current piece. The result retains canonical board effects and probabilities for the later decision panel.
+Completion locks Jev and uses `settleMatchSession` to resolve top-out and the round barrier without applying gravity to the human. If the human has already locked, the next shared piece spawns once; otherwise the human continues its current piece. The result retains canonical board effects and probabilities for the decision panel.
 
-The match view gates the shared clock while a decision is pending or requires retry and does not offer generic resume in those states. It shows pending and retry status and offers an explicit same-snapshot retry. Current route tests use mocked HTTP responses; the UI was visually checked without sending a live TypeSafe decision.
+The match view gates the shared clock while a decision is pending or requires retry and does not offer generic resume in those states. It shows pending and retry status and offers an explicit same-snapshot retry. Current route and UI tests use mocked HTTP responses; no live TypeSafe decision is sent by the automated suite.
 
 ## Split-screen match view
 
@@ -168,7 +168,7 @@ The match view gates the shared clock while a decision is pending or requires re
 
 [`src/client/board-view.tsx`](src/client/board-view.tsx) draws each player's settled cells and active piece from the shared engine. It renders only the 20 visible rows. `peekNextPiece` previews the next shared piece without consuming the seven-bag, including at a bag boundary. Both boards and the round, current piece, upcoming piece, player labels, and ready/playing/paused/Jev pending/retry/finished states are visible.
 
-At desktop width, [`app/globals.css`](app/globals.css) uses two equal-width columns. The human region fills the left 50%; the right column uses a 70/30 row split for a Jev region of 35% and a decision/status region of 15%. A desktop browser viewport check confirmed both boards visible and the area split. Below 950 px the regions stack vertically. The panel currently shows match status and available actions; choice probabilities and calculated outcomes follow in task 5.3.
+At desktop width, [`app/globals.css`](app/globals.css) uses two equal-width columns. The human region fills the left 50%; the right column uses a 70/30 row split for a Jev region of 35% and a decision/status region of 15%. The decision panel retains the last completed choice and its returned probability, up to three alternatives ranked by returned probability, and canonical simulated lines cleared, aggregate height, holes, and bumpiness. Token usage appears only when returned; latency and absent usage are labeled unavailable. The panel contains no generated natural-language explanation. Below 950 px the regions stack vertically.
 
 ### Keyboard controls
 
