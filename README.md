@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, focused keyboard controls, and Jev decision facts panel are implemented. The browser shows both boards, starts the shared 700 ms clock, pauses during Jev decisions, accepts keyboard input after the human board receives focus, and retains the last completed Jev selection and calculated outcomes during the human turn. Broader browser-flow coverage remains pending.
+The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, focused keyboard controls, Jev decision facts panel, and Playwright browser-flow coverage are implemented. The browser shows both boards, starts the shared 700 ms clock, pauses during Jev decisions, accepts keyboard input after the human board receives focus, and retains the last completed Jev selection and calculated outcomes during the human turn. E2E tests cover start, decision success/retry, a human round, pause/resume, restart, and a terminal result with Jev mocked.
 
-OpenSpec implementation progress is **14 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, and 5.3). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **15 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, and 5.4). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -43,9 +43,14 @@ Replace the placeholder with your own key. Keep the variable name exactly `JEV_A
 | `npm run dev` | Start the Next.js development server |
 | `npm run lint` | Run ESLint |
 | `npm test` | Run the Vitest unit and JSDOM UI suites for the engine, match lifecycle, keyboard controls, and Jev decision flow |
+| `npm run test:e2e` | Run the Playwright Chromium end-to-end match flows |
 | `npm run typecheck` | Run TypeScript without emitting files |
 | `npm run build` | Build the production application |
 | `npm start` | Serve the production build |
+
+### Browser end-to-end tests
+
+Install the Playwright Chromium binary once with `npx playwright install chromium`, then run `npm run test:e2e`. Playwright starts a dedicated Next.js development server at `http://127.0.0.1:3100`; it refuses to reuse an existing server and sets `JEV_API_KEY` to an empty value. Every browser test intercepts `/api/jev/decision` and returns mocked decisions, so the suite does not need a Jev API key and cannot make a live Jev request.
 
 ## Agent tooling
 
