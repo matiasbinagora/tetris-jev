@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { requestJevDecision } from './jev-decision-api';
 import { BoardView } from './board-view';
+import { handleFocusedGameKey } from './game-keyboard';
 import {
   beginJevDecision,
   completeJevDecision,
@@ -19,6 +20,7 @@ import {
   tickMatchSession,
   type MatchSessionState,
 } from '../game/match-session';
+import { applyHumanGameAction } from '../game/human-controls';
 import { MATCH_GRAVITY_INTERVAL_MS, peekNextPiece } from '../game/match';
 
 interface ViewState {
@@ -156,6 +158,13 @@ export function MatchApp() {
         : decisionStatus === 'retry-required'
           ? 'Decision interrupted'
           : 'Current piece active';
+  const keyboardState = {
+    phase: state.session.phase,
+    hasJevDecision: state.decision !== null,
+    decisionSetupFailed: state.decisionSetupFailed,
+    humanHasActivePiece: core.human.activePiece !== null,
+    humanLockedThisRound: core.human.lockedThisRound,
+  };
 
   return (
     <main className="match-shell">
@@ -188,13 +197,43 @@ export function MatchApp() {
             </div>
           </div>
 
-          <div className="board-wrap board-wrap--human">
+          <div
+            className="board-wrap board-wrap--human"
+            role="group"
+            tabIndex={0}
+            aria-label="Human game board controls"
+            aria-describedby="human-controls-help"
+            onKeyDown={(event) => handleFocusedGameKey(
+              event.nativeEvent,
+              keyboardState,
+              (action) => setState((current) => {
+                if (current.decision !== null || current.decisionSetupFailed) return current;
+                const session = applyHumanGameAction(current.session, action);
+                if (session === current.session) return current;
+                return beginJevIfActive(session, current.completedDecisions, current.matchId);
+              }),
+              () => setState((current) => {
+                if (current.decision !== null || current.decisionSetupFailed) return current;
+                const session = current.session.phase === 'playing'
+                  ? pauseMatchSession(current.session)
+                  : current.session.phase === 'paused'
+                    ? resumeMatchSession(current.session)
+                    : current.session;
+                return session === current.session ? current : { ...current, session };
+              }),
+            )}
+          >
             <BoardView board={core.human.board} activePiece={core.human.activePiece} label="Human Tetris board, 10 columns by 20 visible rows" player="human" />
             <div className="board-caption"><span>Human</span><span>10 × 20</span></div>
           </div>
         </div>
 
-        <div className="area-footer"><span>Same pieces.</span><span>Different decisions.</span></div>
+        <div className="area-footer">
+          <span>Same pieces. Different decisions.</span>
+          <p id="human-controls-help" className="control-help">
+            <kbd>←</kbd>/<kbd>→</kbd> move · <kbd>↓</kbd> soft drop · <kbd>↑</kbd>/<kbd>X</kbd> rotate · <kbd>Z</kbd> reverse · <kbd>Space</kbd> hard drop · <kbd>P</kbd> pause/resume
+          </p>
+        </div>
       </section>
 
       <div className="right-column">
