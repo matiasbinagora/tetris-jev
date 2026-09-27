@@ -33,6 +33,7 @@ button { font: inherit; }
 
 .board-wrap { display: flex; flex-direction: column; align-items: center; min-width: 0; min-height: 0; }
 .board-wrap--human { height: min(76vh, 655px); max-height: 100%; }
+.board-wrap--human:focus-visible { outline: 2px solid #f1c09d; outline-offset: 5px; border-radius: 3px; }
 .board-wrap--jev { height: min(48vh, 440px); max-height: 100%; }
 .board { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); grid-template-rows: repeat(20, minmax(0, 1fr)); height: 100%; aspect-ratio: 1 / 2; padding: 5px; gap: 2px; border: 1px solid #59626a; background: #252d35; box-shadow: 0 22px 42px #0007, inset 0 0 0 4px #121820; }
 .board--jev { border-color: #426564; background: #263b3d; }
@@ -44,7 +45,9 @@ button { font: inherit; }
 .board__cell--l { background: #efb17d !important; border-color: #f7cfaa !important; }
 .board__cell--active { box-shadow: inset 0 0 0 2px #ffffff55, 0 0 16px #ffffff22; }
 .board-caption { display: flex; justify-content: space-between; width: 100%; margin-top: 9px; color: #8e999f; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.area-footer { display: flex; justify-content: space-between; padding-top: 16px; border-top: 1px solid #414751; color: #77818d; font-size: 11px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+.area-footer { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 12px; border-top: 1px solid #414751; color: #77818d; font-size: 11px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+.control-help { max-width: 100%; margin: 0; color: #aab4bc; font-size: clamp(8px, .72vw, 10px); font-weight: 500; letter-spacing: 0; line-height: 1.6; text-transform: none; }
+.control-help kbd { border: 1px solid #58616a; border-radius: 3px; padding: 1px 4px; color: #f3e9dd; font: inherit; white-space: nowrap; }
 
 .jev-content { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; gap: clamp(28px, 5vw, 90px); }
 .jev-side-note { display: flex; flex-direction: column; gap: 12px; color: #929fa7; font-size: 12px; line-height: 1.5; }

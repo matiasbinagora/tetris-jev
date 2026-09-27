@@ -26,7 +26,7 @@
 ## 5. Split-screen game interface
 
 - [x] 5.1 Build the simultaneous human/Jev board view using the 50% / 35% / 15% layout, player labels, current/upcoming piece, and visible match states; verify a desktop viewport check confirms the approved area allocation and both boards remain visible.
-- [ ] 5.2 Add the documented keyboard controls, focus handling, and on-screen control help; verify UI tests cover movement, rotation, soft drop, hard drop, pause, and prevention of page scrolling from game keys.
+- [x] 5.2 Add the documented keyboard controls, focus handling, and on-screen control help; verify UI tests cover movement, rotation, soft drop, hard drop, pause, and prevention of page scrolling from game keys.
 - [ ] 5.3 Add Jev's selected move, returned probability, up to three alternatives, calculated board effects, and available latency/usage metrics; verify UI tests cover returned data, absent metrics, and no fabricated natural-language explanation.
 - [ ] 5.4 Add end-to-end coverage for start, a human round, Jev decision success, Jev retry, pause/resume, restart, and match result; verify the full browser flow passes with the Jev API mocked and no live key required.
 
