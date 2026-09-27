@@ -10,6 +10,7 @@ import {
   advanceMatchRound,
   applySharedGravityTick,
   createMatchCore,
+  peekNextPiece,
   type MatchCoreState,
 } from './match';
 
@@ -49,6 +50,28 @@ describe('createMatchCore', () => {
   it('rejects seeds that are not finite integers', () => {
     expect(() => createMatchCore(Number.NaN)).toThrow(RangeError);
     expect(() => createMatchCore(1.5)).toThrow(RangeError);
+  });
+});
+
+describe('peekNextPiece', () => {
+  it('shows the queued piece without changing the match', () => {
+    const state = createMatchCore(123456);
+    expect(peekNextPiece(state)).toBe(state.bag[state.bagIndex]);
+    expect(state.bagIndex).toBe(1);
+  });
+
+  it('previews the next seven-bag deterministically at the bag boundary', () => {
+    let state = createMatchCore(987654321);
+    for (let round = 0; round < 6; round += 1) {
+      state = advanceMatchRound(withBothPlayersLocked(state));
+    }
+    const snapshot = JSON.stringify(state);
+    const preview = peekNextPiece(state);
+    const next = advanceMatchRound(withBothPlayersLocked(state));
+
+    expect(preview).toBe(next.currentPiece);
+    expect(peekNextPiece(JSON.parse(snapshot) as MatchCoreState)).toBe(preview);
+    expect(JSON.stringify(state)).toBe(snapshot);
   });
 });
 
