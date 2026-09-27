@@ -48,4 +48,4 @@
 - [x] Render selected/alternative rows and usage/latency labels in the existing decision panel; label effects as calculated outcomes, keep the 50/35/15 allocation, and add compact responsive styling.
 - [x] Update README and mark task 5.3 complete.
 - [x] Run the full test suite, lint, typecheck, production build, strict OpenSpec validation, and `git diff --check`; inspect the desktop interface locally and use only mocked Jev responses in UI tests.
-- [ ] Commit task 5.3, request one independent final review, push the branch, and open its PR against `main`.
+- [x] Commit task 5.3, request one independent final review, push the branch, and open its PR against `main`.
