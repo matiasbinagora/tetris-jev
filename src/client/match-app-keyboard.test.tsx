@@ -66,6 +66,7 @@ describe('MatchApp keyboard focus boundary', () => {
     fireEvent(board, downEvent);
     expect(downEvent.defaultPrevented).toBe(true);
     const afterSoftDrop = activeVisibleCells(humanBoard);
+    expect(afterSoftDrop).toEqual(afterMove.map((index) => index + 10));
 
     const pauseButton = screen.getByRole('button', { name: /pause/i });
     pauseButton.focus();
