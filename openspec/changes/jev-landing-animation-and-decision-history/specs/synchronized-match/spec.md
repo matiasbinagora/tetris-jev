@@ -2,6 +2,25 @@
 
 ## MODIFIED Requirements
 
+### Requirement: Independent board outcomes
+The human and Jev boards SHALL maintain independent settled cells, line clears, top-out state, survived-piece counts, and scores. A line clear or placement on one board SHALL NOT alter the other board. Each player SHALL receive one score point for each line cleared when locking a piece on that player's board, including a line-clearing lock that also tops out. Locks that clear no lines SHALL NOT change the score. A piece SHALL count as survived only after it locks without top-out; a spawn top-out SHALL NOT increment the count. A new match SHALL reset both scores to zero. Score SHALL be informational and SHALL NOT change the existing winner-by-survival rule.
+
+#### Scenario: Award points for cleared lines
+- **WHEN** a player's lock clears one or more lines
+- **THEN** that player's score increases by exactly the number of lines cleared, and the other player's score remains unchanged
+
+#### Scenario: Clear a line on one board
+- **WHEN** a piece completes a line on one player's board
+- **THEN** only that player's board removes the line
+
+#### Scenario: Preserve score rules across top-out and restart
+- **WHEN** a lock clears a line while topping out, or a new match begins
+- **THEN** the clearing player receives the point before the match ends, and a new match initializes both scores to zero
+
+#### Scenario: Keep match results based on survival
+- **WHEN** the players finish with different scores but the survival rule determines the result
+- **THEN** the match winner is still determined only by survived-piece counts
+
 ### Requirement: Shared sequence with independent progression
 Each match SHALL generate one deterministic seven-bag tetromino sequence from its seed. Each player SHALL have a separate sequence cursor and SHALL receive the same piece type at the same cursor position. A player SHALL receive its next piece immediately after its current piece locks without waiting for the other player. The human board SHALL use a 700 ms gravity interval. After Jev returns a valid placement, the interface SHALL show the selected piece landing in two visible stages of approximately 300 ms each; Jev SHALL lock the selected legal landing only after both stages complete. Jev SHALL proceed to the next piece independently after the landing and SHALL make no more than one decision request at a time.
 

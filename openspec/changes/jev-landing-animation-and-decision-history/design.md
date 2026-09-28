@@ -12,6 +12,8 @@ The match engine and API contract are already pure and deterministic. This chang
 - Use approximately 300 ms for each stage, then lock the exact server-validated selected board and continue Jev's existing independent cadence.
 - Freeze an in-progress animation on manual pause and resume from that stage without losing the accepted result.
 - Retain the latest five successful Jev decisions through subsequent pieces and pending/retry states, until a new match begins.
+- Track and display a score per player; each line cleared on a player's own board adds exactly one point, and a new match resets both scores.
+- Freeze the decision panel's currently visible history snapshot on request without pausing gameplay, API calls, or internal history updates; returning to live view selects the newest decision.
 - Keep decision facts honest: display only returned probabilities and metrics and computed board outcomes.
 
 **Non-Goals:**
@@ -19,6 +21,7 @@ The match engine and API contract are already pure and deterministic. This chang
 - Changing candidate generation, server validation, the TypeSafe request, or which model choice is applied.
 - Changing human gravity, human controls, board rules, the decision cadence, or the match winner rules.
 - Adding persistence across reloads or matches.
+- Using line score to change the existing survival-based match winner.
 
 ## Decisions
 
@@ -36,6 +39,14 @@ Replace the single `lastDecision` view value with a newest-first list of at most
 
 Five entries provide a useful demo history without making the decision panel unbounded. The existing resizable panel lets the presenter allocate more space when inspecting older entries.
 
+### Track line score per player
+
+Add a serializable score field to each independent player state. Every lock transition receives the actual `linesCleared` result from the deterministic board engine and adds that number to that player's score. Movement, soft drop, spawn, and locks that clear no rows do not change the score. A lock that clears rows awards those points even if the same lock tops out, because the rows were removed from that player's board. New match construction initializes both scores to zero. The score is displayed with each player's board and remains informational; match winners continue to be decided by survived pieces.
+
+### Freeze a decision history snapshot
+
+The decision panel receives the live bounded history and a frozen snapshot owned by match presentation state. Activating Freeze captures the exact rendered history and selected/expanded record. Subsequent successful decisions continue to update live history but do not replace the frozen snapshot. The panel indicates that it is frozen and offers a Resume live control. Resuming discards the snapshot and displays the current newest history, including any decisions completed while frozen. This control does not touch match pause state, decision requests, retry state, or the history ring buffer. Starting a new match clears both live and frozen decision state.
+
 ### Keep responsibilities separated
 
 The presentation lifecycle belongs in the client match orchestration because the API has already returned a validated decision before animation begins. The pure match engine remains responsible for applying a final landing and counting survival only when the piece locks. `BoardView` receives a visual piece pose while the landing stage is active; it does not mutate the board. `JevDecisionPanel` receives a bounded list of immutable completed-decision facts and owns the expand/collapse UI.
@@ -46,6 +57,7 @@ The presentation lifecycle belongs in the client match orchestration because the
 - A timeout or pause could otherwise leave an animation timer running. Tie each timer to the active match, decision, stage, and playing phase; cleanup and stale-token checks discard obsolete callbacks.
 - Interpolated visual poses may not trace every legal path used during candidate enumeration. Treat the movement as presentation only and apply the exact validated landing at completion.
 - Older decision details add panel content. Keep only five entries, collapse older entries by default, and preserve the existing panel resizer.
+- A frozen snapshot intentionally may be older than the five live history records after enough decisions; it is scoped to the current match and is discarded on Resume live or New match.
 
 ## Migration Plan
 
