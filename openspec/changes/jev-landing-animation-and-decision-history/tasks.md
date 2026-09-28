@@ -1,6 +1,6 @@
 ## 1. Jev landing animation
 
-- [ ] 1.1 Separate accepted Jev choices from board locking; animate two 300 ms stages, pause/resume safely, respect reduced motion, and verify the landing lifecycle with focused tests.
+- [x] 1.1 Separate accepted Jev choices from board locking; animate two 300 ms stages, pause/resume safely, respect reduced motion, and verify the landing lifecycle with focused tests.
 
 ## 2. Recent decision history
 
