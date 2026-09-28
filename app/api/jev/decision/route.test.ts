@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createEmptyBoard,
-  enumerateLegalLandingCandidates,
+  trySpawnPiece,
   type ActivePiece,
   type Board,
 } from '../../../../src/game/engine';
+import { getPieceAtSequenceIndex } from '../../../../src/game/match';
+import { rankJevPlacements } from '../../../../src/game/jev-placement';
 import { POST } from './route';
 
 const API_KEY_SENTINEL = 'typesafe-route-secret-sentinel';
@@ -13,18 +15,28 @@ const upstreamFetch = vi.fn<typeof fetch>();
 
 function createValidRequestBody(): {
   seed: number;
+  sequenceIndex: number;
   board: Board;
   piece: ActivePiece;
+  nextPiece: ReturnType<typeof getPieceAtSequenceIndex>;
   candidates: { id: string; lockedPiece: ActivePiece }[];
 } {
+  const seed = 123;
+  const sequenceIndex = 0;
   const board = createEmptyBoard();
-  const piece: ActivePiece = { type: 'T', rotation: 0, x: 3, y: 0 };
-  const candidates = enumerateLegalLandingCandidates(board, piece);
+  const type = getPieceAtSequenceIndex(seed, sequenceIndex);
+  const nextPiece = getPieceAtSequenceIndex(seed, sequenceIndex + 1);
+  const spawned = trySpawnPiece(board, type);
+  if (spawned.kind !== 'spawned') throw new Error('fixture must spawn');
+  const piece = spawned.piece;
+  const candidates = rankJevPlacements(board, piece, nextPiece);
 
   return {
-    seed: 123,
+    seed,
+    sequenceIndex,
     board,
     piece,
+    nextPiece,
     candidates: candidates.map(({ id, lockedPiece }) => ({ id, lockedPiece })),
   };
 }
@@ -39,13 +51,19 @@ function createJsonRequest(value: unknown): Request {
 
 function probabilitiesForRequest(body = createValidRequestBody()): Record<string, number> {
   return Object.fromEntries(
-    enumerateLegalLandingCandidates(body.board, body.piece).map(
+    body.candidates.map(
       (candidate, index) => [
         candidate.id,
         index === 0 ? 0.123456789 : 0.234567891,
       ],
     ),
   );
+}
+
+function typeSafeProbabilities(body = createValidRequestBody()): Record<string, number> {
+  return Object.fromEntries(body.candidates.map((_candidate, index) => [
+    `p${index}`, index === 0 ? 0.123456789 : 0.234567891,
+  ]));
 }
 
 function choiceResponse(
@@ -64,7 +82,7 @@ function choiceResponse(
         type: 'choice',
         choice,
         confidence: 0.93,
-        probabilities: options.probabilities ?? probabilitiesForRequest(requestBody),
+        probabilities: options.probabilities ?? typeSafeProbabilities(requestBody),
       },
     },
   };
@@ -135,7 +153,7 @@ describe('POST /api/jev/decision', () => {
   it('clears its deadline after a successful response', async () => {
     vi.useFakeTimers();
     const body = createValidRequestBody();
-    upstreamFetch.mockResolvedValueOnce(choiceResponse(body.candidates[0]!.id));
+    upstreamFetch.mockResolvedValueOnce(choiceResponse('p0'));
     expect((await POST(createJsonRequest(body))).status).toBe(200);
     expect(vi.getTimerCount()).toBe(0);
     const signal = upstreamFetch.mock.calls[0]![1]!.signal;
@@ -170,9 +188,9 @@ describe('POST /api/jev/decision', () => {
 
   it('maps one typed TypeSafe choice call to the canonical candidate, probabilities, and usage', async () => {
     const body = createValidRequestBody();
-    const canonicalCandidates = enumerateLegalLandingCandidates(body.board, body.piece);
+    const canonicalCandidates = rankJevPlacements(body.board, body.piece, body.nextPiece);
     const selectedCandidate = canonicalCandidates[3]!;
-    upstreamFetch.mockResolvedValueOnce(choiceResponse(selectedCandidate.id));
+    upstreamFetch.mockResolvedValueOnce(choiceResponse('p3'));
 
     const response = await POST(createJsonRequest(body));
     const responseText = await response.text();
@@ -197,28 +215,31 @@ describe('POST /api/jev/decision', () => {
 
     const payload = JSON.parse(String(init?.body)) as {
       model: string;
-      state: { board: Board; piece: ActivePiece };
+      state: { board: string[]; legend: Record<string, string>; piece: ActivePiece; nextPiece: string };
       questions: Record<
         string,
         { type: string; instructions: string; criteria: Record<string, string> }
       >;
     };
     expect(payload.model).toBe('jev-latest');
-    expect(payload.state).toEqual({ board: body.board, piece: body.piece });
+    expect(payload.state.board).toEqual(body.board.slice(2).map((row) => row.map((cell) => cell ?? '.').join('')));
+    expect(payload.state.legend['.']).toBe('empty');
+    expect(payload.state.piece).toEqual(body.piece);
+    expect(payload.state.nextPiece).toBe(body.nextPiece);
     expect(Object.keys(payload.questions)).toEqual(['placement']);
     expect(payload.questions.placement.type).toBe('choice');
-    expect(Object.keys(payload.questions.placement.criteria)).toEqual(
-      body.candidates.map(({ id }) => id),
-    );
+    expect(Object.keys(payload.questions.placement.criteria)).toEqual(body.candidates.map((_candidate, index) => `p${index}`));
+    expect(payload.questions.placement.criteria.p0).toContain('Immediate lines cleared:');
+    expect(payload.questions.placement.criteria.p0).toContain('Next-piece lines cleared:');
   });
 
   it('maps valid zero usage and omits absent or malformed optional usage', async () => {
     const body = createValidRequestBody();
-    const selectedId = body.candidates[0]!.id;
-    const validCandidates = enumerateLegalLandingCandidates(body.board, body.piece);
+    const validCandidates = rankJevPlacements(body.board, body.piece, body.nextPiece);
+    const choiceLabel = 'p0';
 
     upstreamFetch.mockResolvedValueOnce(
-      choiceResponse(selectedId, { includeUsage: false }),
+      choiceResponse(choiceLabel, { includeUsage: false }),
     );
     const missingUsageResponse = await POST(createJsonRequest(body));
     const missingUsageBody = await missingUsageResponse.json();
@@ -228,7 +249,7 @@ describe('POST /api/jev/decision', () => {
     expect(missingUsageBody).not.toHaveProperty('cost');
 
     upstreamFetch.mockResolvedValueOnce(
-      choiceResponse(selectedId, {
+      choiceResponse(choiceLabel, {
         usage: { input_tokens: 4.5, output_tokens: 12 },
       }),
     );
@@ -238,7 +259,7 @@ describe('POST /api/jev/decision', () => {
     expect(fractionalInputBody).not.toHaveProperty('usage');
 
     upstreamFetch.mockResolvedValueOnce(
-      choiceResponse(selectedId, {
+      choiceResponse(choiceLabel, {
         usage: { input_tokens: 120, output_tokens: -1 },
       }),
     );
@@ -249,7 +270,7 @@ describe('POST /api/jev/decision', () => {
     expect(negativeOutputBody.selectedCandidate).toEqual(validCandidates[0]);
 
     upstreamFetch.mockResolvedValueOnce(
-      choiceResponse(selectedId, {
+      choiceResponse(choiceLabel, {
         usage: { input_tokens: 0, output_tokens: 0 },
       }),
     );
@@ -262,7 +283,7 @@ describe('POST /api/jev/decision', () => {
   it('rejects incomplete probabilities with a generic error and no upstream detail', async () => {
     const body = createValidRequestBody();
     upstreamFetch.mockResolvedValueOnce(
-      choiceResponse(body.candidates[0]!.id, {
+      choiceResponse('p0', {
         probabilities: { forged: 0.5 },
       }),
     );
@@ -281,6 +302,14 @@ describe('POST /api/jev/decision', () => {
       createJsonRequest({ ...body, candidates: body.candidates.slice(1) }),
     );
 
+    expect(response.status).toBe(400);
+    expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects a mismatched sequence piece before calling TypeSafe', async () => {
+    const body = createValidRequestBody();
+    body.nextPiece = getPieceAtSequenceIndex(body.seed, body.sequenceIndex + 2);
+    const response = await POST(createJsonRequest(body));
     expect(response.status).toBe(400);
     expect(upstreamFetch).not.toHaveBeenCalled();
   });
