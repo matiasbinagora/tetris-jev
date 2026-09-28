@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { requestJevDecision } from './jev-decision-api';
 import { BoardView } from './board-view';
-import { handleFocusedGameKey } from './game-keyboard';
+import { handleGameKey } from './game-keyboard';
 import {
   beginJevDecision,
   completeJevDecision,
@@ -96,6 +96,7 @@ function statusFor(state: ViewState): { name: string; message: string } {
 }
 
 export function MatchApp() {
+  const humanBoardRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ViewState>(() => ({
     session: createMatchSession(INITIAL_SEED),
     decision: null,
@@ -178,13 +179,40 @@ export function MatchApp() {
         : decisionStatus === 'retry-required'
           ? 'Decision interrupted'
           : 'Current piece active';
-  const keyboardState = {
+  const keyboardState = useMemo(() => ({
     phase: state.session.phase,
     hasJevDecision: state.decision !== null,
     decisionSetupFailed: state.decisionSetupFailed,
     humanHasActivePiece: core.human.activePiece !== null,
     humanLockedThisRound: core.human.lockedThisRound,
-  };
+  }), [state.session.phase, state.decision, state.decisionSetupFailed, core.human.activePiece, core.human.lockedThisRound]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      handleGameKey(
+        event,
+        keyboardState,
+        (action) => setState((current) => {
+          if (current.decision !== null || current.decisionSetupFailed) return current;
+          const session = applyHumanGameAction(current.session, action);
+          if (session === current.session) return current;
+          return beginJevIfActive(session, current.completedDecisions, current.matchId, current.lastDecision);
+        }),
+        () => setState((current) => {
+          if (current.decision !== null || current.decisionSetupFailed) return current;
+          const session = current.session.phase === 'playing'
+            ? pauseMatchSession(current.session)
+            : current.session.phase === 'paused'
+              ? resumeMatchSession(current.session)
+              : current.session;
+          return session === current.session ? current : { ...current, session };
+        }),
+      );
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [keyboardState]);
 
   return (
     <main className="match-shell">
@@ -219,29 +247,11 @@ export function MatchApp() {
 
           <div
             className="board-wrap board-wrap--human"
+            ref={humanBoardRef}
             role="group"
             tabIndex={0}
             aria-label="Human game board controls"
             aria-describedby="human-controls-help"
-            onKeyDown={(event) => handleFocusedGameKey(
-              event.nativeEvent,
-              keyboardState,
-              (action) => setState((current) => {
-                if (current.decision !== null || current.decisionSetupFailed) return current;
-                const session = applyHumanGameAction(current.session, action);
-                if (session === current.session) return current;
-                return beginJevIfActive(session, current.completedDecisions, current.matchId, current.lastDecision);
-              }),
-              () => setState((current) => {
-                if (current.decision !== null || current.decisionSetupFailed) return current;
-                const session = current.session.phase === 'playing'
-                  ? pauseMatchSession(current.session)
-                  : current.session.phase === 'paused'
-                    ? resumeMatchSession(current.session)
-                    : current.session;
-                return session === current.session ? current : { ...current, session };
-              }),
-            )}
           >
             <BoardView board={core.human.board} activePiece={core.human.activePiece} label="Human Tetris board, 10 columns by 20 visible rows" player="human" />
             <div className="board-caption"><span>Human</span><span>10 × 20</span></div>
@@ -296,13 +306,17 @@ export function MatchApp() {
                   setState((current) => beginJevIfActive(
                     startMatchSession(current.session), current.completedDecisions, matchId, null,
                   ));
+                  humanBoardRef.current?.focus();
                 }}>Start match <span aria-hidden="true">↗</span></button>
               )}
               {state.session.phase === 'playing' && state.decision === null && (
                 <button type="button" className="action-button" onClick={() => setState((current) => ({ ...current, session: pauseMatchSession(current.session) }))}>Pause <span aria-hidden="true">Ⅱ</span></button>
               )}
               {state.session.phase === 'paused' && state.decision === null && !state.decisionSetupFailed && (
-                <button type="button" className="action-button" onClick={() => setState((current) => ({ ...current, session: resumeMatchSession(current.session) }))}>Resume <span aria-hidden="true">▶</span></button>
+                <button type="button" className="action-button" onClick={() => {
+                  setState((current) => ({ ...current, session: resumeMatchSession(current.session) }));
+                  humanBoardRef.current?.focus();
+                }}>Resume <span aria-hidden="true">▶</span></button>
               )}
               {decisionStatus === 'retry-required' && (
                 <button type="button" className="action-button" onClick={() => setState((current) => current.decision ? { ...current, decision: retryJevDecision(current.decision) } : current)}>Retry Jev <span aria-hidden="true">↻</span></button>

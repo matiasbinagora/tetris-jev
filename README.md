@@ -4,13 +4,13 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, focused keyboard controls, Jev decision facts panel, Playwright browser-flow coverage, and Vercel environment setup documentation are implemented. Task 7.1 adds a deterministic shortlist of up to 12 placements, evaluates the known next piece, validates the exact shortlist on the server, and labels Jev's probabilities as preferences among those options. The current production deployment still runs the earlier shared-round behavior until the gameplay revision PRs are merged and deployed. The browser currently pauses both boards during Jev decisions and accepts keyboard input after the human board receives focus. E2E tests cover start, decision success/retry, a human round, pause/resume, restart, and a terminal result with Jev mocked. The Vercel project is connected to GitHub; Preview and Production deployments have both been verified with Jev decisions. Production also fails closed and preserves the round when the server credential is unavailable.
+The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, application-level keyboard controls, Jev decision facts panel, Playwright browser-flow coverage, and Vercel environment setup documentation are implemented. Task 7.1 adds a deterministic shortlist of up to 12 placements, evaluates the known next piece, validates the exact shortlist on the server, and labels Jev's probabilities as preferences among those options. Task 7.2 handles game keys without requiring board focus and restores visible play focus after Start and Resume. The current production deployment still runs the earlier shared-round behavior until the gameplay revision PRs are merged and deployed. The browser currently pauses both boards during Jev decisions. E2E tests cover start, focus restoration, keyboard movement, decision success/retry, a human round, pause/resume, restart, and a terminal result with Jev mocked. The Vercel project is connected to GitHub; Preview and Production deployments have both been verified with Jev decisions. Production also fails closed and preserves the round when the server credential is unavailable.
 
-OpenSpec implementation progress is **18 of 22 tasks complete** on merged `main`; task 7.1 is in progress on its own feature branch, followed by tasks 7.2 through 7.4. See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **20 of 22 tasks complete on this branch**. Task 7.1 is merged, and task 7.2 is implemented in this PR; tasks 7.3 and 7.4 remain. See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ### Approved gameplay revision
 
-The deployed app still has the shared round barrier and board-focused keyboard controls described below. The current task branch implements the first part of the revised OpenSpec design: Jev chooses from a deterministic shortlist evaluated for line clears, holes, height, bumpiness, and the known next piece. Follow-up tasks will make game keys work without a board click and let each player progress independently through the same seeded sequence. A Jev API delay or retry will stop only Jev; manual pause will stop both players; the winner will be determined by pieces survived rather than API speed. Each implementation task will be a separate PR from the latest `main`.
+The deployed app still has the shared round barrier until the remaining gameplay PRs are merged and deployed. Jev chooses from a deterministic shortlist evaluated for line clears, holes, height, bumpiness, and the known next piece. Task 7.2 makes game keys work without a board click and returns focus to the play area after Start and Resume. Task 7.3 will let each player progress independently through the same seeded sequence. A Jev API delay or retry will stop only Jev; manual pause will stop both players; the winner will be determined by pieces survived rather than API speed. Each implementation task will be a separate PR from the latest `main`.
 
 Jev's returned probabilities will remain its preferences among the submitted options. They are not estimates of the chance to clear a line or win. The shortlist will be calculated and validated by the shared rules, and Jev will still make the final placement choice. See the [OpenSpec design](openspec/changes/play-tetris-against-jev/design.md) for the exact contract and task order.
 
@@ -211,7 +211,7 @@ At desktop width, [`app/globals.css`](app/globals.css) uses two equal-width colu
 
 ### Keyboard controls
 
-The human board is a focusable keyboard region. Click or tab to the board before using game keys; the match action buttons remain outside this region and keep their native keyboard activation. The visible help below the human board lists the bindings:
+Game keys work during active human play without requiring the board to have focus. Start and Resume return visible focus to the human board. Native buttons retain their keyboard activation, and editable controls, IME composition, and Ctrl/Meta/Alt browser shortcuts are left alone. The visible help below the human board lists the bindings:
 
 | Key | Action |
 | --- | --- |
@@ -222,7 +222,7 @@ The human board is a focusable keyboard region. Click or tab to the board before
 | Space | Hard drop and lock |
 | P | Pause or resume manual play |
 
-Game keys prevent page scrolling while the board has focus. Movement is disabled while the match is paused, a human piece is already locked, or Jev's decision is pending/requires retry. `P` cannot resume a Jev decision pause. Ctrl, Meta, and Alt shortcuts pass through to the browser.
+Handled game keys prevent page scrolling wherever focus is in the app. Movement is disabled while the match is paused, a human piece is already locked, or Jev's decision is pending/requires retry. `P` cannot resume a Jev decision pause.
 
 ## Development workflow
 

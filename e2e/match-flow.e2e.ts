@@ -94,6 +94,7 @@ test('finishes a match after the human uses hard drop through the shared rounds'
   const humanControls = page.getByRole('group', { name: 'Human game board controls' });
   const finished = page.getByRole('heading', { name: 'Finished' });
   for (let round = 0; round < 30 && !(await finished.isVisible().catch(() => false)); round += 1) {
+    await expect(page.getByText('Waiting for you', { exact: true })).toBeVisible();
     const currentRound = await page.locator('.round-indicator').textContent();
     await humanControls.press('Space');
     await expect.poll(async () => {
@@ -105,4 +106,40 @@ test('finishes a match after the human uses hard drop through the shared rounds'
   await expect(finished).toBeVisible();
   await expect(page.getByText(/You win this match\.|Jev wins this match\.|The match ended in a draw\./)).toBeVisible();
   expect(requests.length).toBeGreaterThan(0);
+});
+
+test('restores play focus after Start and Resume and accepts keys away from the board', async ({ page }) => {
+  await mockJevDecisionRoute(page, successfulChoice);
+  await page.goto('/');
+
+  const humanControls = page.getByRole('group', { name: 'Human game board controls' });
+  await page.getByRole('button', { name: /start match/i }).click();
+  await expect(humanControls).toBeFocused();
+  await expect(humanControls).toHaveCSS('outline-style', 'solid');
+  await expect(page.getByText('Waiting for you', { exact: true })).toBeVisible();
+
+  const leftmostActiveColumn = () => humanControls.locator('.board__cell--active').evaluateAll((cells) =>
+    Math.min(...cells.map((cell) => Array.from(cell.parentElement!.children).indexOf(cell) % 10)),
+  );
+  const beforeMove = await leftmostActiveColumn();
+  await page.getByRole('heading', { name: 'Your board' }).click();
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(leftmostActiveColumn).toBe(beforeMove - 1);
+
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await expect(humanControls).toBeFocused();
+});
+
+test('preserves native Space activation for the Start button', async ({ page }) => {
+  await mockJevDecisionRoute(page, successfulChoice);
+  await page.goto('/');
+
+  const humanControls = page.getByRole('group', { name: 'Human game board controls' });
+  const startButton = page.getByRole('button', { name: /start match/i });
+  await startButton.focus();
+  await page.keyboard.press('Space');
+
+  await expect(humanControls).toBeFocused();
+  await expect(page.getByText('Waiting for you', { exact: true })).toBeVisible();
 });

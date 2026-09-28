@@ -1,7 +1,7 @@
 import type { MatchPhase } from '../game/match-session';
 import type { HumanGameAction } from '../game/human-controls';
 
-export interface FocusedGameKeyState {
+export interface GameKeyState {
   phase: MatchPhase;
   hasJevDecision: boolean;
   decisionSetupFailed: boolean;
@@ -9,14 +9,30 @@ export interface FocusedGameKeyState {
   humanLockedThisRound: boolean;
 }
 
-export interface FocusedGameKeyboardEvent {
+export interface GameKeyboardEvent {
   key: string;
   repeat: boolean;
   ctrlKey: boolean;
   metaKey: boolean;
   altKey: boolean;
   isComposing: boolean;
+  target?: EventTarget | null;
+  defaultPrevented?: boolean;
   preventDefault(): void;
+}
+
+function isInteractiveTarget(target: EventTarget | null | undefined): boolean {
+  if (target === null || target === undefined || typeof target !== 'object') return false;
+  const element = target as EventTarget & {
+    closest?: (selectors: string) => unknown;
+    isContentEditable?: boolean;
+  };
+  if (element.isContentEditable) return true;
+  if (typeof element.closest !== 'function') return false;
+
+  return element.closest(
+    'button, input, select, textarea, a[href], summary, [role="button"], [contenteditable=""], [contenteditable="true"]',
+  ) !== null;
 }
 
 function actionForKey(key: string): HumanGameAction | null {
@@ -29,20 +45,22 @@ function actionForKey(key: string): HumanGameAction | null {
     case 'X': return 'rotate-clockwise';
     case 'z':
     case 'Z': return 'rotate-counterclockwise';
+    case 'Space':
     case ' ':
     case 'Spacebar': return 'hard-drop';
     default: return null;
   }
 }
 
-/** Dispatch game controls only when called by the focused human-board region. */
-export function handleFocusedGameKey(
-  event: FocusedGameKeyboardEvent,
-  state: FocusedGameKeyState,
+/** Dispatch game controls from anywhere in the app except native or editable controls. */
+export function handleGameKey(
+  event: GameKeyboardEvent,
+  state: GameKeyState,
   onAction: (action: HumanGameAction) => void,
   onPauseToggle: () => void,
 ): void {
-  if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey ||
+    event.defaultPrevented || isInteractiveTarget(event.target)) return;
 
   const action = actionForKey(event.key);
   const isPauseKey = event.key.toLowerCase() === 'p';
