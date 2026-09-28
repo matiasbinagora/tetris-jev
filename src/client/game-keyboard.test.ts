@@ -124,7 +124,7 @@ describe('game keyboard controls', () => {
   });
 
   it('ignores keys originating from native controls and editable content', () => {
-    for (const selector of ['button', 'input', 'textarea', 'select', '[contenteditable="true"]']) {
+    for (const selector of ['button', 'input', 'textarea', 'select', '[contenteditable="true"]', '[role="separator"]']) {
       const event = keyboardEvent(' ', {
         target: {
           closest: (requested: string) => requested.includes(selector) ? {} : null,

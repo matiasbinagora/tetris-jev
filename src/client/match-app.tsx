@@ -24,6 +24,7 @@ import {
 import { applyHumanGameAction } from '../game/human-controls';
 import { JEV_DECISION_CADENCE_MS, MATCH_GRAVITY_INTERVAL_MS, getPlayerPiece, peekNextPlayerPiece } from '../game/match';
 import { JevDecisionPanel, type CompletedDecisionFacts } from './jev-decision-panel';
+import { JevPanelResizer } from './jev-panel-resizer';
 
 interface ViewState {
   session: MatchSessionState;
@@ -300,8 +301,8 @@ export function MatchApp() {
         </div>
       </section>
 
-      <div className="right-column">
-        <section className="player-area player-area--jev" aria-labelledby="jev-heading">
+      <JevPanelResizer>{[
+        <section key="jev-board" className="player-area player-area--jev" aria-labelledby="jev-heading">
           <div className="area-header area-header--compact">
             <div>
               <p className="eyebrow">02 / Decision model</p>
@@ -322,9 +323,9 @@ export function MatchApp() {
               <small>{core.jev.survivedPieces} pieces survived</small>
             </div>
           </div>
-        </section>
+        </section>,
 
-        <section className="decision-area" aria-labelledby="match-status-heading">
+        <section key="decision-panel" className="decision-area" aria-labelledby="match-status-heading">
           <div className="decision-heading">
             <p className="eyebrow">03 / Match status</p>
             <span className="round-indicator">HUMAN {String(core.human.sequenceIndex + 1).padStart(2, '0')} · JEV {String(core.jev.sequenceIndex + 1).padStart(2, '0')} · {sequenceLead}</span>
@@ -379,8 +380,8 @@ export function MatchApp() {
             facts={state.decision === null && !state.decisionSetupFailed ? state.lastDecision : null}
           />
           <div className="decision-footer"><span>Jev decisions completed</span><strong>{String(state.completedDecisions).padStart(2, '0')}</strong></div>
-        </section>
-      </div>
+        </section>,
+      ]}</JevPanelResizer>
     </main>
   );
 }

@@ -42,6 +42,8 @@ describe('MatchApp keyboard focus boundary', () => {
     await user.tab();
     expect(document.activeElement).toBe(board);
     await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('separator', { name: 'Resize Jev board and decision panel' }));
+    await user.tab();
     const startButton = screen.getByRole('button', { name: /start match/i });
     expect(document.activeElement).toBe(startButton);
     await user.keyboard('{Enter}');

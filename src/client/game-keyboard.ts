@@ -29,7 +29,7 @@ function isInteractiveTarget(target: EventTarget | null | undefined): boolean {
   if (typeof element.closest !== 'function') return false;
 
   return element.closest(
-    'button, input, select, textarea, a[href], summary, [role="button"], [contenteditable=""], [contenteditable="true"]',
+    'button, input, select, textarea, a[href], summary, [role="button"], [role="separator"], [contenteditable=""], [contenteditable="true"]',
   ) !== null;
 }
 
