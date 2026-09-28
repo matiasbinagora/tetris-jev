@@ -2,90 +2,74 @@
 
 ## Context
 
-See [proposal.md](proposal.md) for motivation and scope. The folder has no existing application or capability specs; this change defines a new Next.js App Router application. The game is a desktop demo with two visible boards and a TypeSafe Jev decision route. The Jev key belongs to the server environment.
+The Next.js Tetris demo is deployed and already has a deterministic engine, seeded seven-bag sequence, two boards, a TypeSafe Jev route, and a decision panel. The first version holds both players at a shared round barrier, pauses the human for every Jev request, requires focus on the human board for keyboard input, and gives Jev placement descriptions containing only piece coordinates and rotation. The approved gameplay revision makes Jev's Tetris decisions more useful and allows both players to advance independently while keeping the comparison fair.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Keep the game rules deterministic and shared between rendering, placement simulation, and Jev request validation.
-- Preserve the approved 50% human / 35% Jev board / 15% decision-panel screen-area layout.
-- Make Jev's selected move and returned probabilities inspectable without inventing model explanations.
-- Make local development and a later Vercel Preview/Production deployment straightforward.
+- Make line clearing and long-term board survival visible to Jev when it chooses a placement.
+- Keep the final applied Jev choice and its returned probabilities genuinely from the TypeSafe API.
+- Give both boards the same seeded piece at each sequence position without making the faster player wait.
+- Allow the human to play while Jev is pending or retry-required and accept game keys without a board click.
+- Preserve the desktop 50% human / 35% Jev board / 15% decision-panel layout and server-only key handling.
 
 **Non-Goals:**
 
-- Accounts, saved matches, online multiplayer, garbage attacks, a database, or a persistent match service.
-- Replacing Jev with a scripted, heuristic, or alternate-model player.
-- Deploying the application before this folder is connected to a Git repository and Vercel project.
+- A perfect Tetris bot, a local fallback move, probability sampling, invented Jev reasoning, accounts, persistence, multiplayer, or garbage attacks.
+- Treating Jev's returned choice probability as the probability of clearing lines or winning.
+- Changing the seven tetrominoes, SRS rules, board dimensions, or line-clear mechanics.
 
 ## Decisions
 
-### Client-owned deterministic match, shared core rules
+### Pure rules and one indexed sequence
 
-Keep match and board state in the browser for this single-user demo. Put board transitions, collision checks, rotations, candidate enumeration, line clears, and placement metrics in a pure TypeScript game module. The Jev route imports the same rules to validate the submitted candidate set; it does not own match state. This avoids a database or a stateful server and prevents the browser and server from silently applying different rules.
+Continue using the pure TypeScript engine for collision, movement, SRS rotations, reachable landing enumeration, locking, line clears, top-out, and metrics. A match seed defines one infinite seven-bag sequence. Add a pure way to derive a piece by zero-based sequence index from that seed, or an equivalent serializable sequence cache. Each player keeps its own sequence index, active piece, settled board, survived-piece count, and top-out flag. Both players receive the same type at the same index; neither waits for the other to lock. The human receives one 700 ms gravity tick on its own timer. Jev locks its API-selected landing directly and begins the next decision after a minimum 350 ms visible cadence, with at most one request in flight. Manual pause stops both progressions.
 
-Use a 10 by 20 visible board with two hidden spawn rows. Use a seeded seven-bag sequence shared by both boards. Each round presents the same sequence item to both boards; a board that locks first waits until the other board locks before the next round begins. The shared clock advances both active boards on the same fixed 700 ms gravity interval. The waiting board has no active piece to move. This round barrier preserves identical pieces and ordering while keeping the two settled boards independent.
+A piece counts as survived only when its lock does not top out. A failed spawn does not increment the count. When one player tops out, compare survived counts: if the other has already survived more, finish immediately; otherwise let that player continue until it survives one more than the topped-out count or tops out. If both top out with equal survived counts, draw. This compares progress through the same sequence rather than API speed. A finished match ignores all later ticks and responses.
 
-Use deterministic rotation with a documented Super Rotation System kick table for standard tetrominoes. Use one fixed gravity interval for the MVP rather than line-clear-based speed changes, since the players clear lines independently and a single shared clock is part of the match contract.
+### Deterministic shortlist, then Jev decides
 
-Calculate aggregate height, holes, and bumpiness over the 20 visible rows only; the two hidden spawn rows are excluded from these metrics. A piece that locks with any cell in a hidden row tops out, and a board also tops out when its next piece cannot occupy the spawn position.
+The existing engine enumerates every reachable landing footprint and simulates its resulting board. For each landing, calculate immediate lines cleared, resulting holes, aggregate height, bumpiness, and top-out. Use the known next piece to simulate the best legal follow-up landing one step ahead. Define `quality(outcome) = 12 * linesCleared - 8 * holes - 0.5 * aggregateHeight - 0.4 * bumpiness`. Rank each current candidate by its immediate quality plus half the best next-piece quality. A top-out candidate ranks below every surviving move; if the next piece cannot spawn, its follow-up quality is `-1000`. This score will be checked against fixed board scenarios before integration and can be adjusted in the strategy task with a corresponding design update.
 
-Enumerate Jev's placements with a breadth-first search from its active piece. Expand collision-legal left, right, down, clockwise-rotation, and counterclockwise-rotation transitions in that fixed order, using the same movement and SRS helpers as gameplay. A reachable state is a landing when it cannot move down. Deduplicate identical occupied-cell footprints, assign a stable identifier to each footprint, and simulate every candidate with the pure lock-and-clear operation. Candidate order and identifiers must be repeatable for the same board and piece.
+First keep the highest-scoring surviving candidate for each distinct immediate line-clear count when capacity allows. Fill the remaining slots by score, breaking ties by stable candidate ID, to a maximum of 12. If all placements top out, apply the same ranking without the surviving-only filter. The score only filters and orders choices; it never applies a placement. The server reconstructs the full legal set and the shortlist from canonical board, seed, Jev sequence index, and piece. It rejects altered IDs, poses, or shortlist membership. Client-provided prose or scores are ignored.
 
-### Serializable shared-match core for task 3.1
+Send one TypeSafe `choice` question per Jev piece. Its state contains a compact 20-row board representation with a legend and the current and next piece. Each criterion describes a shortlisted landing with its position, rotation, immediate lines, resulting holes/height/bumpiness, and best known-next-piece follow-up. Use short labels in the upstream criteria to keep the request small, then map the returned label and probabilities back to canonical candidate IDs. The route continues to enforce its eight-second deadline and keeps `JEV_API_KEY` server-only. A missing key, malformed response, or timeout never triggers a substitute move.
 
-Put the first match coordinator in `src/game/match.ts`, with unit tests in `src/game/match.test.ts`. It consumes the existing pure board engine and keeps match-level data in a JSON-serializable `MatchCoreState`: the normalized seed and PRNG state, current seven-bag and its next index, round number and shared piece type, and separate human and Jev records. Each player record contains its own board, active piece (or `null` after locking), whether it has locked for the current round, and a top-out flag from the engine's lock or spawn result. Transitions return new state values and do not mutate their inputs.
+The UI displays the selected move, up to three alternatives, calculated outcomes, and the exact returned probabilities. It labels probabilities as preferences within the submitted shortlist. It does not claim they are win probabilities or explanations of Jev's reasoning. This one-call design follows the [Jev Tetris example](https://www.jevtypesafeai.com/games/jev-tetris), which also shortlists placements before a typed choice, while our scoring and server validation remain explicit and deterministic.
 
-Generate bags by shuffling the canonical seven piece types with Fisher–Yates and a seeded xorshift32 generator. Normalize seeds to unsigned 32-bit integers and map zero to a fixed nonzero state so the generator cannot get stuck. Store the generator state and current bag in `MatchCoreState`, so the sequence is reproducible from a seed and can continue from a serialized snapshot. Do not use `Math.random` or other ambient state. Match creation selects the first piece and attempts to spawn that same type on both independent empty boards.
+### Independent Jev request state and pauses
 
-Export the shared gravity interval as `700` milliseconds. A pure match gravity transition applies the engine's one-cell gravity tick to each player who still has an active piece. If a tick locks a piece, keep the resulting board, clear that player's active piece, and mark the player locked for the round. Later ticks leave a locked player's record unchanged while the other player's active piece continues to fall. A pure next-round transition is guarded by both lock flags and by the absence of a top-out: before both players lock, or after either player tops out, it returns the current state unchanged. Otherwise it selects the next shared piece, attempts a spawn on both boards, increments the round, and resets the per-round lock flags. A failed spawn sets that board's top-out flag. The caller decides when to request this transition; task 3.2 owns automatic lifecycle orchestration, start/pause/resume/restart controls, and win/draw resolution based on the top-out flags.
+Keep Jev's decision state separate from the overall match phase. Beginning a decision captures an immutable seed, Jev sequence index, board, active piece, next piece, canonical shortlist, and serialized POST body. Each new decision has a unique ID and each retry increments an attempt number; stale responses cannot alter a newer match or decision. Pending or retry-required freezes Jev alone while the human gravity timer and controls continue. Retry sends the byte-identical request body. Manual pause stops both boards. An in-flight response may be retained during manual pause but is applied only after resume; restarting or finishing discards it. Only one Jev request may be in flight at a time.
 
-Tests cover repeatable sequences for the same seed, one of each piece per bag, the shared piece on both boards in each round, board independence, immutable tick transitions, gravity movement on active boards, stability of an already locked board, and the next-round lock barrier. The match module contains no browser timer, UI state, persistence, or server-owned match state; the UI or lifecycle layer will schedule the exported 700 ms interval later.
+### Keyboard and visible state
 
-### Match session lifecycle for task 3.2
+Handle game keys at the application/window level while the match is active so a board click is unnecessary. Ignore composing input, editable targets, native buttons and other interactive controls, and Ctrl/Meta/Alt shortcuts. Prevent scrolling only for keys handled as game controls. Move visible focus back to the human play area after Start and Resume. Preserve native button keyboard activation. `P` toggles manual pause; it does not dismiss a Jev error. Movement affects only the human board and remains available while Jev is pending or retry-required. Show each player's own current/next piece and survived-piece count, the winner comparison, and Jev's separate pending/retry status. Preserve the existing CSS Grid area allocation.
 
-Wrap `MatchCoreState` in a serializable `MatchSessionState` with `ready`, `playing`, `paused`, and `finished` phases plus a nullable win/draw result. Creating a session builds its seeded core in `ready`; start changes only the phase. Pause and resume change only the phase and preserve the core exactly. Restart accepts a fresh seed from its caller, resets the core and result, and starts the new match immediately in `playing`. Seed generation remains outside the pure game module.
+### Test and deployment boundaries
 
-The lifecycle tick is a pure transition called by the shared clock. It does nothing unless the session is `playing`; otherwise it applies one shared core tick, resolves a single top-out as a win for the surviving player or simultaneous top-outs as a draw, and advances to the next round as soon as both players lock. It resolves spawn top-outs in that same transition. A finished session ignores future ticks until restart. The browser timer remains with the client layer that schedules `MATCH_GRAVITY_INTERVAL_MS`; this module owns only deterministic session transitions and outcomes.
+Add pure tests for sequence equality across different player speeds, candidate ranking and line-clear retention, next-piece lookahead, top-out count resolution, manual pause and stale response handling. Add route tests that reject forged shortlists and verify safe credential handling. Update UI and Playwright coverage for input after Start/Resume, human movement during Jev pending/retry, independent Jev progression, and piece-count win/draw. Mock `/api/jev/decision` in automated browser flows. Verify the strategic payload with a few fixed board cases and one configured Preview decision before Production. Keep the full lint, unit, E2E, typecheck, build, and strict OpenSpec validation gate at the end of the change.
 
-### Next.js App Router with a same-origin Jev route
+## Task and PR order
 
-Render the interactive match as a client-side game surface. Put the Jev proxy in a Next.js Route Handler on the Node.js runtime, under the same origin as the page. The browser sends the current Jev board, piece, and legal landing candidates; the route validates the data and calls Jev's decision endpoint once with a typed `choice` question. The API returns a chosen option and per-option probabilities; the route maps the result back to the candidate data and returns safe usage/latency metadata when available.
+1. Strategy: deterministic shortlist, canonical route validation, useful Jev criteria, probability labels, and strategy scenarios.
+2. Keyboard: application-level controls and focus after match buttons.
+3. Independent progression: separate cursors and clocks, Jev-only pending/retry, manual pause, and survived-piece results.
+4. Final validation: run all repository checks and verify Preview before updating Production.
 
-Use the server environment variable `JEV_API_KEY`, as shown in the Jev API documentation. Read it only inside the route handler, never in a client component or public `NEXT_PUBLIC_` variable. Keep the route stateless: a retry repeats the same snapshot and candidate IDs, and no match data is written to storage.
-
-### Pause the shared match during Jev requests
-
-When a Jev piece starts, pause the shared match while the decision request is pending. Give the upstream request an eight-second deadline. On a valid result, apply the selected placement to Jev's board and resume both boards. On timeout, network failure, invalid choice, or upstream error, leave the match paused and offer retry with the same snapshot. This gives the user the approved pause-and-retry behavior and prevents either player's clock or board from advancing during an unresolved decision.
-
-### Task 4.3 decision coordination
-
-Require the normalized unsigned 32-bit match seed in every same-origin decision POST, validate it on the server, and omit it from the TypeSafe payload. Enforce the eight-second upstream deadline across both fetching and reading the response body, aborting upstream on timeout and returning the existing generic failure response.
-
-Keep a separate pure decision coordinator with a detached snapshot of the paused session and canonical candidates. Serialize the POST body once and reuse it on explicit retry. Guard both success and failure with a caller-supplied unique decision ID and an attempt number; the caller must issue a new ID for every new decision, including restarts using the same seed. Apply only a captured canonical candidate and settle top-out/round progression without applying an extra gravity tick. A small client adapter performs one same-origin POST per attempt; visible state and browser event wiring remain with the interface tasks.
-
-### Render the approved layout with CSS Grid
-
-Use equal-width viewport columns. The left column is the human area. Divide the right column into a 70% upper board region and a 30% lower decision region, which yields the approved 50/35/15 total viewport-area allocation. Scale the 10 by 20 board within its region while preserving cell proportions. Keep board labels, status, controls, and decision metrics visible in the surrounding region.
-
-The decision panel shows the selected placement and probability, the highest-probability alternatives, and effects computed by simulating each option: lines cleared, aggregate height, holes, and column bumpiness. These values are outcomes calculated by the game, not Jev's prose or an explanation of its internal reasoning. Show latency and token/cost usage only when the API response supplies them.
-
-### Vercel deployment after repository setup
-
-Use Next.js's standard Vercel integration and keep the decision route on a server-capable runtime. Document `.env.local` for development and configure `JEV_API_KEY` separately for Vercel Preview and Production. Verify Preview with the configured secret before Production. Since this folder is not yet a Git repository, repository linking and deployment are follow-up operational steps, not part of this change's current documentation work.
+Each numbered task gets its own feature branch and PR from the latest merged `main`. This design and the revised OpenSpec contract are reviewed in a planning PR before implementation.
 
 ## Risks / Trade-offs
 
-- **Jev may choose legal but weak placements** → Treat that as expected behavior for a general decision model; expose the actual candidate set and returned probabilities, and do not claim the agent is a Tetris-optimized bot.
-- **A Jev call delays the human match** → Pause both boards, show a clear pending state, and keep retry available after failure rather than allowing the game clock to diverge.
-- **A public server route can consume API credits** → Validate request bounds, accept only legal candidate sets, make one Jev call per attempt, and expose returned usage/cost when available. Do not log or return the credential.
-- **Vercel Preview or Production lacks the secret** → Fail with a safe setup message at decision time; document separate environment configuration for local, Preview, and Production.
-- **The round barrier makes a faster player wait after locking** → Keep both boards visible and show the locked/waiting status; the barrier is the explicit fairness trade-off for receiving the same piece at each round.
+- The shortlist can exclude an unexpectedly good creative placement. Fixed strategy scenarios and line-clear diversity keep the filter reviewable; Jev still makes the final choice.
+- A general decision model can still choose a weak move from the shortlist. The UI reports the actual choice and conditional probabilities without promising optimal play.
+- Jev may consume decisions faster than a human can place pieces. Limit it to one request at a time and a short visible cadence; show both sequence positions.
+- A finished match or restart can race with an old network response. Unique decision IDs, attempt tokens, and a final-state guard discard stale results.
+- Preview and Production require separate server-side credentials. Keep the key out of client assets, responses, logs, and commits.
 
 ## References
 
-- [Jev API documentation](https://jevtypesafeai.com/docs)
-- [Jev Tetris example](https://jevtypesafeai.com/games/jev-tetris)
+- [Jev Tetris example](https://www.jevtypesafeai.com/games/jev-tetris)
+- [TypeSafe System One endpoint](https://www.jevtypesafeai.com/jev/api)
 - [Next.js Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route)
 - [Vercel environment variables](https://vercel.com/docs/environment-variables)

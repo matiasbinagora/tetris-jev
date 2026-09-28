@@ -14,10 +14,10 @@ This folder contains the planning baseline for a desktop-first Next.js Tetris ma
 
 ## Product constraints
 
-- Keep the human and Jev boards independent while sharing one seeded seven-bag piece sequence, one piece per round, and one gravity clock. Do not advance to the next piece until both players have locked the current one.
+- Keep the human and Jev boards independent while sharing one seeded seven-bag piece sequence. Give each player its own sequence cursor. Human gravity runs every 700 ms; Jev may lock its API-selected placement and advance independently. Determine the winner by pieces survived from the same sequence, allowing the other player to catch up after a top-out.
 - Preserve the desktop 50% human / 35% Jev board / 15% Jev decision panel layout.
-- Jev chooses among enumerated legal placements through the server route. Do not substitute a heuristic or another model when Jev is delayed or unavailable; pause and allow retry with the same decision state.
-- Show returned choice probabilities and computed board outcomes. Do not present fabricated natural-language explanations as Jev reasoning.
+- Deterministic scoring may shortlist legal placements and describe their simulated outcomes, but Jev chooses the final placement through the server route. Do not substitute a heuristic or another model when Jev is delayed or unavailable; stop only Jev and allow retry with the same decision state while the human continues unless manually paused.
+- Show returned choice probabilities as relative to the submitted shortlist and show computed board outcomes. Do not present probabilities as line-clear chances or fabricated natural-language explanations as Jev reasoning.
 - Keep `JEV_API_KEY` server-only. Never use a `NEXT_PUBLIC_` variable for it, return it to the browser, commit it, or log it.
 - Keep match state in the browser. The MVP has no accounts, database, persistence, multiplayer, or garbage attacks.
 

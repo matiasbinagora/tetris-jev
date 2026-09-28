@@ -1,12 +1,18 @@
 # Tetris vs Jev
 
-A desktop-first browser match where a human plays Tetris against Jev. Both players are intended to receive the same pieces on the same gravity clock while keeping independent boards. The product and architecture contract lives in the OpenSpec change `play-tetris-against-jev`.
+A desktop-first browser match where a human plays Tetris against Jev. Both players receive the same seeded piece sequence on independent boards. The approved revision lets each player advance at its own pace. The product and architecture contract lives in the OpenSpec change `play-tetris-against-jev`.
 
 ## Current status
 
 The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, focused keyboard controls, Jev decision facts panel, Playwright browser-flow coverage, and Vercel environment setup documentation are implemented. The browser shows both boards, starts the shared 700 ms clock, pauses during Jev decisions, accepts keyboard input after the human board receives focus, and retains the last completed Jev selection and calculated outcomes during the human turn. E2E tests cover start, decision success/retry, a human round, pause/resume, restart, and a terminal result with Jev mocked. The Vercel project is connected to GitHub; Preview and Production deployments have both been verified with Jev decisions. Production also fails closed and preserves the round when the server credential is unavailable.
 
-OpenSpec implementation progress is **18 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, 6.1, 6.2, and 6.3). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **18 of 22 tasks complete** (tasks 1.1 through 6.3). The gameplay revision in tasks 7.1 through 7.3 and final validation in 7.4 remain. See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+
+### Approved gameplay revision
+
+The deployed app still has the shared round barrier and board-focused keyboard controls described below. Production feedback led to a revised OpenSpec design: Jev will choose from a deterministic shortlist evaluated for line clears, holes, height, bumpiness, and the known next piece; game keys will work during play without a board click; and each player will progress independently through the same seeded sequence. A Jev API delay or retry will stop only Jev. Manual pause will stop both players. The winner will be determined by pieces survived rather than by API speed. Each implementation task will be a separate PR from the latest `main`.
+
+Jev's returned probabilities will remain its preferences among the submitted options. They are not estimates of the chance to clear a line or win. The shortlist will be calculated and validated by the shared rules, and Jev will still make the final placement choice. See the [OpenSpec design](openspec/changes/play-tetris-against-jev/design.md) for the exact contract and task order.
 
 ## Local development
 
@@ -102,9 +108,10 @@ The Vercel skills installed for this project are stored under `.agents/skills/` 
 These are the OpenSpec requirements; they describe the target behavior and are not all implemented yet:
 
 - A deterministic 10 by 20 Tetris board with two hidden spawn rows and standard tetromino rotation rules.
-- One seeded seven-bag piece sequence and one 700 ms gravity clock shared by two independent boards. The next round starts after both players lock the current piece.
+- One seeded seven-bag sequence with an independent sequence cursor per player. Human gravity runs every 700 ms; Jev advances after each API-selected placement. The winner survives more pieces from the same sequence.
 - A desktop layout allocating 50% of the viewport area to the human board, 35% to Jev's board, and 15% to Jev's decision panel.
-- Jev chooses only from server-validated legal placements. If a request fails or times out, the match pauses and retries with the same decision state; there is no substitute player.
+- Jev chooses from a server-validated shortlist of legal placements with calculated board outcomes. If a request fails or times out, Jev stops and retries with the same decision state while the human can keep playing; there is no substitute player.
+- Game keys work during active human play without requiring board focus, while native controls and browser shortcuts retain their behavior.
 - The match stays in the browser. The MVP has no accounts, database, persistence, multiplayer, or garbage attacks.
 
 ## Tetris engine

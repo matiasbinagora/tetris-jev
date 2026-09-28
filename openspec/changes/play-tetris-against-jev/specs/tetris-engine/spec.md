@@ -25,10 +25,10 @@ The game SHALL reject any movement or rotation that would place a piece outside 
 - **THEN** the piece rotates at the first legal candidate in the documented order
 
 ### Requirement: Gravity and piece locking
-The game SHALL move each active piece down by one cell for each shared gravity tick. The human player SHALL be able to soft-drop and hard-drop; hard drop SHALL move the piece to its lowest legal position and lock it immediately. A piece SHALL lock when it cannot move down on a gravity tick.
+The game SHALL move the human active piece down by one cell for each human gravity tick. The human player SHALL be able to soft-drop and hard-drop; hard drop SHALL move the piece to its lowest legal position and lock it immediately. A human piece SHALL lock when it cannot move down on a gravity tick. Jev SHALL use a server-validated legal landing and lock that placement directly after its decision.
 
 #### Scenario: Apply a gravity tick
-- **WHEN** the shared clock emits a gravity tick while a board has an active piece
+- **WHEN** the human clock emits a gravity tick while the human board has an active piece
 - **THEN** that piece moves down one cell if the destination is legal, or locks if it is not
 
 #### Scenario: Hard-drop the human piece
