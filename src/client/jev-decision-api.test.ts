@@ -34,7 +34,7 @@ describe('same-origin Jev adapter', () => {
     expect(request[1]?.body).toBe(retry.snapshot.requestBody);
     expect(fetcher.mock.calls[1][1]?.body).toBe(request[1]?.body);
     expect(JSON.parse(request[1]!.body as string).seed).toBe(123);
-    expect(tickMatchSession(retry.session)).toBe(retry.session);
+    expect(tickMatchSession(retry.session).core.human.activePiece?.y).toBe(retry.session.core.human.activePiece!.y + 1);
     if (!success.ok) throw new Error('Expected success');
     expect(success.result.selectedCandidate).toBe(retry.snapshot.candidates[0]);
     expect(success.result.usage).toEqual({ inputTokens: 4, outputTokens: 0 });
@@ -42,13 +42,13 @@ describe('same-origin Jev adapter', () => {
     expect(completeJevDecision(retry, retry.token, success.result).session.phase).toBe('playing');
   });
 
-  it('leaves a pending match frozen until a response arrives', async () => {
+  it('keeps the human board moving while a Jev request is pending', async () => {
     const flow = begin();
     let resolve!: (value: Response) => void;
     const fetcher = vi.fn<typeof fetch>(() => new Promise((done) => { resolve = done; }));
     const pending = requestJevDecision(flow.snapshot, fetcher);
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(tickMatchSession(flow.session)).toBe(flow.session);
+    expect(tickMatchSession(flow.session).core.human.activePiece?.y).toBe(flow.session.core.human.activePiece!.y + 1);
     resolve(Response.json(answer()));
     expect((await pending).ok).toBe(true);
   });

@@ -4,7 +4,7 @@ import {
   tryMovePiece,
   tryRotatePiece,
 } from './engine';
-import { settleMatchSession, type MatchSessionState } from './match-session';
+import { lockMatchSessionPlayer, type MatchSessionState } from './match-session';
 
 export type HumanGameAction =
   | 'left'
@@ -32,20 +32,7 @@ export function applyHumanGameAction(
 
   if (action === 'hard-drop') {
     const result = hardDropPiece(human.board, piece);
-    const next: MatchSessionState = {
-      ...session,
-      core: {
-        ...session.core,
-        human: {
-          ...human,
-          board: result.board,
-          activePiece: null,
-          lockedThisRound: true,
-          topOut: result.topOut,
-        },
-      },
-    };
-    return settleMatchSession(next);
+    return lockMatchSessionPlayer(session, 'human', result.board, result.topOut);
   }
 
   const nextPiece = (() => {

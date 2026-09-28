@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchSession, startMatchSession, type MatchSessionState } from './match-session';
+import { getPieceAtSequenceIndex } from './match';
 import { applyHumanGameAction, type HumanGameAction } from './human-controls';
 
 function playing(seed = 123): MatchSessionState {
@@ -48,27 +49,27 @@ describe('human game actions', () => {
     const before = playing();
     const jevBoard = before.core.jev.board;
     const after = applyHumanGameAction(before, 'hard-drop');
-    expect(after.core.human.activePiece).toBeNull();
-    expect(after.core.human.lockedThisRound).toBe(true);
+    expect(after.core.human.activePiece?.type).toBe(getPieceAtSequenceIndex(before.core.seed, 1));
+    expect(after.core.human.sequenceIndex).toBe(1);
+    expect(after.core.human.survivedPieces).toBe(1);
     expect(after.core.human.board).not.toBe(before.core.human.board);
     expect(after.core.jev.board).toBe(jevBoard);
     expect(after.core.jev).toBe(before.core.jev);
   });
 
-  it('settles the shared round after the human hard-drops when Jev is already locked', () => {
+  it('does not change Jev when the human hard-drops even if Jev is on another sequence index', () => {
     const before = playing();
     const jevBoard = before.core.jev.board;
-    const bothReadyToSettle: MatchSessionState = {
+    const jevAdvanced: MatchSessionState = {
       ...before,
       core: {
         ...before.core,
-        jev: { ...before.core.jev, activePiece: null, lockedThisRound: true },
+        jev: { ...before.core.jev, activePiece: { ...before.core.jev.activePiece!, y: 5 }, sequenceIndex: 3 },
       },
     };
-    const after = applyHumanGameAction(bothReadyToSettle, 'hard-drop');
-    expect(after.core.roundIndex).toBe(before.core.roundIndex + 1);
-    expect(after.core.human.activePiece?.type).toBe(after.core.currentPiece);
-    expect(after.core.jev.activePiece?.type).toBe(after.core.currentPiece);
+    const after = applyHumanGameAction(jevAdvanced, 'hard-drop');
+    expect(after.core.human.sequenceIndex).toBe(1);
+    expect(after.core.jev).toBe(jevAdvanced.core.jev);
     expect(after.core.jev.board).toBe(jevBoard);
   });
 
