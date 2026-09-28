@@ -1,8 +1,8 @@
 import type { ActivePiece, Board } from './engine';
 import { rankJevPlacements, type RankedLanding } from './jev-placement';
 import { parseJevDecisionResult, type JevDecisionRequest, type JevDecisionResult } from './jev-decision-contract';
-import { pauseMatchSession, settleMatchSession, type MatchSessionState } from './match-session';
-import { peekNextPiece } from './match';
+import { lockMatchSessionPlayer, resumeMatchSession, type MatchSessionState } from './match-session';
+import { getPieceAtSequenceIndex } from './match';
 
 export interface JevAttemptToken { decisionId: string; attempt: number }
 export interface JevDecisionSnapshot {
@@ -18,7 +18,7 @@ export interface JevDecisionSession {
   session: MatchSessionState;
   snapshot: JevDecisionSnapshot;
   token: JevAttemptToken;
-  status: 'pending' | 'retry-required' | 'complete';
+  status: 'pending' | 'retry-required' | 'ready-to-apply' | 'complete';
   result: JevDecisionResult | null;
 }
 
@@ -31,22 +31,22 @@ function freezeTree<T>(value: T): T {
 }
 
 export function beginJevDecision(session: MatchSessionState, decisionId: string): JevDecisionSession | null {
-  const { human, jev } = session.core;
-  if (session.phase !== 'playing' || decisionId.length === 0 || human.topOut || jev.topOut ||
+  const { jev } = session.core;
+  if (session.phase !== 'playing' || decisionId.length === 0 || jev.topOut ||
     jev.lockedThisRound || jev.activePiece === null) return null;
-  const paused = pauseMatchSession(structuredClone(session));
-  const board = paused.core.jev.board;
-  const piece = paused.core.jev.activePiece!;
-  const sequenceIndex = paused.core.roundIndex;
-  const nextPiece = peekNextPiece(paused.core);
+  const snapshotSession = structuredClone(session);
+  const board = snapshotSession.core.jev.board;
+  const piece = snapshotSession.core.jev.activePiece!;
+  const sequenceIndex = snapshotSession.core.jev.sequenceIndex;
+  const nextPiece = getPieceAtSequenceIndex(snapshotSession.core.seed, Math.min(sequenceIndex + 1, 10_000));
   const candidates = rankJevPlacements(board, piece, nextPiece);
   if (candidates.length === 0) return null;
   const request: JevDecisionRequest = {
-    seed: paused.core.seed, sequenceIndex, board, piece, nextPiece,
+    seed: snapshotSession.core.seed, sequenceIndex, board, piece, nextPiece,
     candidates: candidates.map(({ id, lockedPiece }) => ({ id, lockedPiece })),
   };
   return {
-    session: freezeTree(paused),
+    session: freezeTree(snapshotSession),
     snapshot: freezeTree({ seed: request.seed, sequenceIndex, board, piece, nextPiece, candidates, requestBody: JSON.stringify(request) }),
     token: { decisionId, attempt: 1 }, status: 'pending', result: null,
   };
@@ -67,17 +67,41 @@ export function retryJevDecision(state: JevDecisionSession): JevDecisionSession 
     : state;
 }
 
-export function completeJevDecision(state: JevDecisionSession, token: JevAttemptToken, value: unknown): JevDecisionSession {
+export function completeJevDecision(
+  state: JevDecisionSession,
+  token: JevAttemptToken,
+  value: unknown,
+  liveSession: MatchSessionState = state.session,
+): JevDecisionSession {
   if (!isCurrentAttempt(state, token)) return state;
   const result = parseJevDecisionResult(state.snapshot.candidates, value);
   if (!result) return failJevDecision(state, token);
-  const { board, topOut } = result.selectedCandidate;
-  const session = settleMatchSession({
-    ...state.session, phase: 'playing',
-    core: {
-      ...state.session.core,
-      jev: { board, topOut, activePiece: null, lockedThisRound: true },
-    },
-  });
-  return { ...state, session, result, status: 'complete' };
+  const liveJev = liveSession.core.jev;
+  const snapshotPiece = state.snapshot.piece;
+  if (liveSession.phase === 'finished' || liveSession.core.seed !== state.snapshot.seed ||
+    liveJev.sequenceIndex !== state.snapshot.sequenceIndex || liveJev.activePiece === null ||
+    liveJev.activePiece.type !== snapshotPiece.type || liveJev.activePiece.rotation !== snapshotPiece.rotation ||
+    liveJev.activePiece.x !== snapshotPiece.x || liveJev.activePiece.y !== snapshotPiece.y ||
+    JSON.stringify(liveJev.board) !== JSON.stringify(state.snapshot.board)) return state;
+  const rebased = { ...state, session: liveSession, result, status: 'ready-to-apply' as const };
+  if (liveSession.phase === 'paused') {
+    return rebased;
+  }
+  return applyJevResult(rebased);
+}
+
+function applyJevResult(state: JevDecisionSession): JevDecisionSession {
+  if (state.status !== 'ready-to-apply' || state.result === null || state.session.phase !== 'playing') return state;
+  const { board, topOut } = state.result.selectedCandidate;
+  return {
+    ...state,
+    session: lockMatchSessionPlayer(state.session, 'jev', board, topOut),
+    status: 'complete',
+  };
+}
+
+/** Apply a response received during manual pause only after the user resumes. */
+export function resumeCompletedJevDecision(state: JevDecisionSession): JevDecisionSession {
+  if (state.status !== 'ready-to-apply' || state.session.phase !== 'paused') return state;
+  return applyJevResult({ ...state, session: resumeMatchSession(state.session) });
 }

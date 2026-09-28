@@ -3,8 +3,6 @@ import type { HumanGameAction } from '../game/human-controls';
 
 export interface GameKeyState {
   phase: MatchPhase;
-  hasJevDecision: boolean;
-  decisionSetupFailed: boolean;
   humanHasActivePiece: boolean;
   humanLockedThisRound: boolean;
 }
@@ -71,8 +69,6 @@ export function handleGameKey(
 
   const mayControlHuman =
     state.phase === 'playing' &&
-    !state.hasJevDecision &&
-    !state.decisionSetupFailed &&
     state.humanHasActivePiece &&
     !state.humanLockedThisRound;
 
@@ -84,8 +80,6 @@ export function handleGameKey(
   }
 
   const mayTogglePause =
-    !state.hasJevDecision &&
-    !state.decisionSetupFailed &&
     (state.phase === 'playing' || state.phase === 'paused');
   if (mayTogglePause && !event.repeat) onPauseToggle();
 }

@@ -7,11 +7,26 @@ Provides a desktop-first simultaneous view of the human board, Jev board, and Je
 ## ADDED Requirements
 
 ### Requirement: Approved desktop layout
-At the target desktop viewport, the game SHALL use two equal-width columns. The human board area SHALL fill the full left column (50% of the viewport area). The right column SHALL place Jev's board in the upper 70% of that column (35% of the viewport area) and Jev's decision panel in the lower 30% (15% of the viewport area).
+At the target desktop viewport, the game SHALL use two equal-width columns. The human board area SHALL fill the full left column (50% of the viewport area). By default, the right column SHALL place Jev's board in the upper 70% of that column (35% of the viewport area) and Jev's decision panel in the lower 30% (15% of the viewport area). The user MAY temporarily resize the two right-column panels.
 
 #### Scenario: Render the desktop match
 - **WHEN** the game is shown at its target desktop viewport
 - **THEN** the human board fills the left half, Jev's smaller board appears at the upper right, and the decision panel appears below it
+
+### Requirement: Resize Jev's board and decision panel
+On desktop, the interface SHALL provide an accessible horizontal separator between Jev's board and the decision panel. Dragging the separator SHALL resize these panels while leaving the human column unchanged. The initial split SHALL be 70% / 30%; the Jev board SHALL remain between 50% and 80% of the right column. The separator SHALL support keyboard adjustment and expose its orientation and current, minimum, and maximum values to assistive technology. The adjustment MAY reset to the default after a page reload. At the responsive stacked layout, the separator SHALL be hidden and both panels SHALL remain visible in normal document flow.
+
+#### Scenario: Enlarge Jev's information panel
+- **WHEN** the user drags the separator upward
+- **THEN** the Jev board area becomes shorter, the decision panel becomes taller, and the human area remains unchanged
+
+#### Scenario: Resize with a keyboard
+- **WHEN** the separator has focus and the user presses Up or Down
+- **THEN** the split changes in the matching direction without exceeding its supported bounds
+
+#### Scenario: Reach a resize bound
+- **WHEN** the user moves the separator beyond either supported limit
+- **THEN** the split stays within its minimum and maximum values
 
 ### Requirement: Show both players and match state
 The interface SHALL show both boards simultaneously, identify each player, show each player's current and upcoming piece and survived-piece count, and make the match and Jev decision states visible, including ready, playing, manually paused, Jev pending, retry required, and finished states. The display SHALL make it clear when one player is ahead in the shared sequence.

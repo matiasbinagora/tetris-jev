@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyBoard, type Cell } from './engine';
-import { createMatchSession, startMatchSession, tickMatchSession } from './match-session';
+import { createMatchSession, pauseMatchSession, startMatchSession, tickMatchSession } from './match-session';
 import {
-  beginJevDecision, completeJevDecision, failJevDecision, retryJevDecision,
+  beginJevDecision, completeJevDecision, failJevDecision, retryJevDecision, resumeCompletedJevDecision,
   type JevDecisionSession,
 } from './jev-decision-session';
 
@@ -28,15 +28,15 @@ function answer(flow: JevDecisionSession, choice = flow.snapshot.candidates[0]!.
 }
 
 describe('Jev decision coordination', () => {
-  it('captures a detached serializable snapshot and pauses both boards', () => {
+  it('captures a detached serializable snapshot without pausing the human board', () => {
     const original = playing();
     const before = structuredClone(original.core);
     const flow = beginJevDecision(original, 'decision-1');
     expect(flow).not.toBeNull();
     expect(flow!.status).toBe('pending');
-    expect(flow!.session.phase).toBe('paused');
+    expect(flow!.session.phase).toBe('playing');
     expect(flow!.session.core).toEqual(before);
-    expect(tickMatchSession(flow!.session)).toBe(flow!.session);
+    expect(tickMatchSession(flow!.session).core.human.activePiece?.y).toBe(before.human.activePiece!.y + 1);
     expect(JSON.parse(JSON.stringify(flow))).toEqual(flow);
     const request = JSON.parse(flow!.snapshot.requestBody);
     expect(request.seed).toBe(123);
@@ -61,7 +61,7 @@ describe('Jev decision coordination', () => {
     expect(retry.token.attempt).toBe(2);
     expect(retry.snapshot).toBe(flow.snapshot);
     expect(retry.session).toBe(flow.session);
-    expect(tickMatchSession(retry.session)).toBe(retry.session);
+    expect(tickMatchSession(retry.session).core.human.activePiece?.y).toBe(retry.session.core.human.activePiece!.y + 1);
     expect(retryJevDecision(retry)).toBe(retry);
     expect(completeJevDecision(retry, flow.token, answer(flow))).toBe(retry);
     expect(failJevDecision(retry, flow.token)).toBe(retry);
@@ -81,32 +81,23 @@ describe('Jev decision coordination', () => {
     expect(done.status).toBe('complete');
     expect(done.session.phase).toBe('playing');
     expect(done.session.core.jev.board).toEqual(createEmptyBoard());
-    expect(done.session.core.jev.lockedThisRound).toBe(true);
-    expect(done.session.core.jev.activePiece).toBeNull();
+    expect(done.session.core.jev.lockedThisRound).toBe(false);
+    expect(done.session.core.jev.sequenceIndex).toBe(1);
+    expect(done.session.core.jev.survivedPieces).toBe(1);
+    expect(done.session.core.jev.activePiece?.type).toBe(flow.snapshot.nextPiece);
     expect(done.session.core.human).toBe(flow.session.core.human);
-    expect(done.session.core.roundIndex).toBe(0);
+    expect(done.session.core.jev.sequenceIndex).toBe(1);
+    expect(done.session.core.human).toBe(flow.session.core.human);
     expect(done.result?.selectedCandidate).toBe(candidate);
     expect(done.result?.usage).toEqual({ inputTokens: 0, outputTokens: 12 });
     expect(done.result?.probabilities[flow.snapshot.candidates[0]!.id]).toBe(0.123456789);
     expect(completeJevDecision(done, done.token, answer(flow))).toBe(done);
     expect(failJevDecision(done, done.token)).toBe(done);
     expect(retryJevDecision(done)).toBe(done);
-    expect(beginJevDecision(done.session, 'duplicate-round')).toBeNull();
+    expect(beginJevDecision(done.session, 'next-piece')).not.toBeNull();
   });
 
-  it('advances exactly once when the human was already locked', () => {
-    const source = playing();
-    source.core.human.activePiece = null;
-    source.core.human.lockedThisRound = true;
-    const flow = beginJevDecision(source, 'barrier')!;
-    const done = completeJevDecision(flow, flow.token, answer(flow));
-    expect(done.session.core.roundIndex).toBe(1);
-    expect(done.session.core.human.activePiece?.y).toBe(0);
-    expect(done.session.core.jev.activePiece?.y).toBe(0);
-    expect(done.session.core.human.activePiece?.type).toBe(done.session.core.jev.activePiece?.type);
-  });
-
-  it('finishes immediately on a Jev lock top-out', () => {
+  it('does not immediately finish when Jev tops out at the same survived-piece count', () => {
     const source = playing();
     source.core.jev.activePiece = { type: 'T', rotation: 0, x: 3, y: 0 };
     mutableBoard(source.core.jev)[2].fill('I');
@@ -114,38 +105,38 @@ describe('Jev decision coordination', () => {
     const candidate = flow.snapshot.candidates.find((c) => c.topOut)!;
     expect(candidate).toBeDefined();
     const done = completeJevDecision(flow, flow.token, answer(flow, candidate.id));
-    expect(done.session.phase).toBe('finished');
-    expect(done.session.result).toEqual({ kind: 'win', winner: 'human' });
+    expect(done.session.phase).toBe('playing');
+    expect(done.session.result).toBeNull();
     expect(done.session.core.human).toBe(flow.session.core.human);
   });
 
-  it.each([false, true])('resolves next-spawn top-outs (both=%s)', (both) => {
-    const source = playing();
-    source.core.human.activePiece = null;
-    source.core.human.lockedThisRound = true;
-    mutableBoard(source.core.human)[0].fill('I');
-    mutableBoard(source.core.human)[1].fill('I');
-    if (both) {
-      mutableBoard(source.core.jev)[0].fill('I', 3, 7);
-      mutableBoard(source.core.jev)[1].fill('I', 3, 7);
-      source.core.jev.activePiece!.y = 5;
-    }
-    const flow = beginJevDecision(source, 'spawn')!;
-    const candidate = flow.snapshot.candidates.find((c) => !c.topOut)!;
-    const done = completeJevDecision(flow, flow.token, answer(flow, candidate.id));
-    expect(done.session.phase).toBe('finished');
-    expect(done.session.result).toEqual(both ? { kind: 'draw' } : { kind: 'win', winner: 'jev' });
+  it('ignores a response when the independent Jev piece has moved to a newer snapshot', () => {
+    const flow = begin();
+    const newer = { ...flow.session, core: { ...flow.session.core,
+      jev: { ...flow.session.core.jev, sequenceIndex: flow.snapshot.sequenceIndex + 1 } } };
+    expect(completeJevDecision(flow, flow.token, answer(flow), newer)).toBe(flow);
+  });
+
+  it('retains a valid decision received during manual pause until resume', () => {
+    const flow = begin();
+    const paused = pauseMatchSession(flow.session);
+    const waiting = completeJevDecision(flow, flow.token, answer(flow), paused);
+    expect(waiting.status).toBe('ready-to-apply');
+    expect(waiting.session.core.jev).toEqual(paused.core.jev);
+    const resumed = resumeCompletedJevDecision(waiting);
+    expect(resumed.status).toBe('complete');
+    expect(resumed.session.core.jev.sequenceIndex).toBe(1);
   });
 
   it.each(['ready', 'paused', 'finished'] as const)('does not start from %s', (phase) => {
     expect(beginJevDecision({ ...playing(), phase }, 'invalid')).toBeNull();
   });
 
-  it('does not start with an empty decision ID or a topped-out player', () => {
+  it('does not start with an empty decision ID, but Jev may continue after human top-out', () => {
     expect(beginJevDecision(playing(), '')).toBeNull();
     const source = playing();
     source.core.human.topOut = true;
-    expect(beginJevDecision(source, 'ended')).toBeNull();
+    expect(beginJevDecision(source, 'after-human-topout')).not.toBeNull();
   });
 
   it.each(['unknown', 'missing', 'extra', 'negative', 'infinite', 'string'])('keeps invalid %s responses paused', (kind) => {

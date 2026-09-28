@@ -4,8 +4,6 @@ import { handleGameKey, type GameKeyState } from './game-keyboard';
 function state(overrides: Partial<GameKeyState> = {}): GameKeyState {
   return {
     phase: 'playing',
-    hasJevDecision: false,
-    decisionSetupFailed: false,
     humanHasActivePiece: true,
     humanLockedThisRound: false,
     ...overrides,
@@ -69,8 +67,6 @@ describe('game keyboard controls', () => {
     ['paused', { phase: 'paused' as const }],
     ['missing piece', { humanHasActivePiece: false }],
     ['human already locked', { humanLockedThisRound: true }],
-    ['Jev pending', { hasJevDecision: true }],
-    ['Jev setup failed', { decisionSetupFailed: true }],
   ] as const)('does not move the board during %s', (_label, overrides) => {
     const event = keyboardEvent('ArrowLeft');
     const onAction = vi.fn();
@@ -79,15 +75,17 @@ describe('game keyboard controls', () => {
     expect(onAction).not.toHaveBeenCalled();
   });
 
-  it('does not resume a Jev pending or retry pause with P', () => {
-    for (const guarded of [
-      state({ phase: 'paused', hasJevDecision: true }),
-      state({ phase: 'paused', decisionSetupFailed: true }),
-    ]) {
-      const onPauseToggle = vi.fn();
-      handleGameKey(keyboardEvent('p'), guarded, vi.fn(), onPauseToggle);
-      expect(onPauseToggle).not.toHaveBeenCalled();
-    }
+  it('keeps human controls active while Jev is deciding or requires retry', () => {
+    const action = vi.fn();
+    handleGameKey(keyboardEvent('ArrowLeft'), state(), action, vi.fn());
+    expect(action).toHaveBeenCalledWith('left');
+  });
+
+  it('allows manual pause and resume while Jev is deciding', () => {
+    const toggle = vi.fn();
+    handleGameKey(keyboardEvent('p'), state({ phase: 'playing' }), vi.fn(), toggle);
+    handleGameKey(keyboardEvent('p'), state({ phase: 'paused' }), vi.fn(), toggle);
+    expect(toggle).toHaveBeenCalledTimes(2);
   });
 
   it('suppresses repeated Space and P events', () => {

@@ -9,6 +9,7 @@ import {
   completeJevDecision,
   failJevDecision,
   retryJevDecision,
+  resumeCompletedJevDecision,
   type JevDecisionSession,
 } from '../game/jev-decision-session';
 import {
@@ -21,7 +22,7 @@ import {
   type MatchSessionState,
 } from '../game/match-session';
 import { applyHumanGameAction } from '../game/human-controls';
-import { MATCH_GRAVITY_INTERVAL_MS, peekNextPiece } from '../game/match';
+import { JEV_DECISION_CADENCE_MS, MATCH_GRAVITY_INTERVAL_MS, getPlayerPiece, peekNextPlayerPiece } from '../game/match';
 import { JevDecisionPanel, type CompletedDecisionFacts } from './jev-decision-panel';
 
 interface ViewState {
@@ -52,10 +53,10 @@ function beginJevIfActive(
   const needsDecision = session.phase === 'playing' && session.core.jev.activePiece !== null;
   const decision =
     needsDecision
-      ? beginJevDecision(session, `${matchId}:${session.core.roundIndex}`)
+      ? beginJevDecision(session, `${matchId}:${session.core.jev.sequenceIndex}`)
       : null;
   return {
-    session: decision?.session ?? (needsDecision ? pauseMatchSession(session) : session),
+    session,
     decision,
     completedDecisions,
     matchId,
@@ -68,19 +69,28 @@ function statusFor(state: ViewState): { name: string; message: string } {
   if (state.decisionSetupFailed) {
     return { name: 'Match stopped', message: 'Jev could not prepare a legal decision for this round.' };
   }
+  if (state.session.phase === 'paused') {
+    return {
+      name: 'Paused',
+      message: state.decision?.status === 'ready-to-apply'
+        ? 'Both players are paused. Jev’s response will apply when you resume.'
+        : 'Both players and the human gravity clock are paused.',
+    };
+  }
   if (state.decision?.status === 'pending') {
-    return { name: 'Jev deciding', message: 'Both boards are paused while Jev chooses a legal landing.' };
+    return { name: 'Jev deciding', message: 'Jev is choosing while your board keeps playing.' };
   }
   if (state.decision?.status === 'retry-required') {
-    return { name: 'Retry required', message: 'Jev did not return a usable choice. The round is unchanged.' };
+    return { name: 'Retry required', message: 'Your board keeps playing. Retry Jev on the same board and piece.' };
+  }
+  if (state.decision?.status === 'ready-to-apply') {
+    return { name: 'Jev ready', message: 'Jev’s choice will apply when you resume the match.' };
   }
   switch (state.session.phase) {
     case 'ready':
       return { name: 'Ready', message: 'The same piece sequence is prepared for both boards.' };
     case 'playing':
-      return { name: 'Playing', message: 'One shared gravity clock is running.' };
-    case 'paused':
-      return { name: 'Paused', message: 'The boards and shared clock are paused.' };
+      return { name: 'Playing', message: 'Your board has its own gravity clock; Jev plays between decisions.' };
     case 'finished': {
       const result = state.session.result;
       return {
@@ -119,23 +129,26 @@ export function MatchApp() {
     void requestJevDecision(decision.snapshot, fetch, controller.signal).then((response) => {
       if (controller.signal.aborted) return;
       setState((current) => {
+        if (current.session.phase === 'finished') return { ...current, decision: null };
         if (!current.decision || current.decision.token.decisionId !== token.decisionId ||
           current.decision.token.attempt !== token.attempt || current.decision.status !== 'pending') {
           return current;
         }
         const next = response.ok
-          ? completeJevDecision(current.decision, token, response.result)
+          ? completeJevDecision(current.decision, token, response.result, current.session)
           : failJevDecision(current.decision, token);
         if (next.status !== 'complete') {
           return { ...current, decision: next };
         }
         if (next.result === null) return { ...current, decision: next };
-        return beginJevIfActive(
-          next.session,
-          current.completedDecisions + 1,
-          current.matchId,
-          { snapshot: current.decision.snapshot, result: next.result },
-        );
+        if (next.status !== 'complete' || next.result === null) return { ...current, decision: next };
+        return {
+          ...current,
+          session: next.session,
+          decision: null,
+          completedDecisions: current.completedDecisions + 1,
+          lastDecision: { snapshot: current.decision.snapshot, result: next.result },
+        };
       });
     });
 
@@ -145,33 +158,43 @@ export function MatchApp() {
   }, [decisionId, attempt, decisionStatus]);
 
   useEffect(() => {
-    if (state.session.phase !== 'playing' || state.decision !== null) return;
+    if (state.session.phase !== 'playing') return;
     const interval = window.setInterval(() => {
       setState((current) => {
-        if (current.session.phase !== 'playing' || current.decision !== null) return current;
-        return beginJevIfActive(
-          tickMatchSession(current.session),
-          current.completedDecisions,
-          current.matchId,
-          current.lastDecision,
-        );
+        if (current.session.phase !== 'playing') return current;
+        const session = tickMatchSession(current.session);
+        return { ...current, session };
       });
     }, MATCH_GRAVITY_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [state.session.phase, state.decision]);
+  }, [state.session.phase]);
+
+  useEffect(() => {
+    if (state.session.phase !== 'playing' || state.decision !== null || state.decisionSetupFailed ||
+      state.session.core.jev.activePiece === null) return;
+    const timeout = window.setTimeout(() => {
+      setState((current) => current.decision === null
+        ? beginJevIfActive(current.session, current.completedDecisions, current.matchId, current.lastDecision)
+        : current);
+    }, JEV_DECISION_CADENCE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [state.session.phase, state.session.core.jev.sequenceIndex, state.session.core.jev.activePiece, state.decision, state.decisionSetupFailed]);
 
   const { core } = state.session;
   const status = statusFor(state);
-  const nextPiece = peekNextPiece(core);
+  const humanPiece = getPlayerPiece(core, core.human);
+  const humanNextPiece = peekNextPlayerPiece(core, core.human);
+  const jevPiece = getPlayerPiece(core, core.jev);
+  const jevNextPiece = peekNextPlayerPiece(core, core.jev);
   const humanStatus = core.human.topOut
     ? 'Topped out'
-    : core.human.lockedThisRound
-      ? 'Waiting for Jev'
+        : core.human.lockedThisRound
+      ? 'Next piece ready'
       : 'Current piece active';
   const jevStatus = core.jev.topOut
     ? 'Topped out'
-    : core.jev.lockedThisRound
-      ? 'Waiting for you'
+      : core.jev.lockedThisRound
+      ? 'Next piece ready'
       : state.decisionSetupFailed
         ? 'Decision unavailable'
       : decisionStatus === 'pending'
@@ -181,11 +204,9 @@ export function MatchApp() {
           : 'Current piece active';
   const keyboardState = useMemo(() => ({
     phase: state.session.phase,
-    hasJevDecision: state.decision !== null,
-    decisionSetupFailed: state.decisionSetupFailed,
     humanHasActivePiece: core.human.activePiece !== null,
     humanLockedThisRound: core.human.lockedThisRound,
-  }), [state.session.phase, state.decision, state.decisionSetupFailed, core.human.activePiece, core.human.lockedThisRound]);
+  }), [state.session.phase, core.human.activePiece, core.human.lockedThisRound]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -193,19 +214,24 @@ export function MatchApp() {
         event,
         keyboardState,
         (action) => setState((current) => {
-          if (current.decision !== null || current.decisionSetupFailed) return current;
+          if (current.session.phase !== 'playing') return current;
           const session = applyHumanGameAction(current.session, action);
-          if (session === current.session) return current;
-          return beginJevIfActive(session, current.completedDecisions, current.matchId, current.lastDecision);
+          return session === current.session ? current : { ...current, session };
         }),
         () => setState((current) => {
-          if (current.decision !== null || current.decisionSetupFailed) return current;
           const session = current.session.phase === 'playing'
             ? pauseMatchSession(current.session)
             : current.session.phase === 'paused'
               ? resumeMatchSession(current.session)
               : current.session;
-          return session === current.session ? current : { ...current, session };
+          if (session === current.session) return current;
+          if (session.phase === 'playing' && current.decision?.status === 'ready-to-apply') {
+            const resumed = resumeCompletedJevDecision({ ...current.decision, session: current.session });
+            return { ...current, session: resumed.session, decision: null,
+              completedDecisions: current.completedDecisions + 1,
+              lastDecision: resumed.result ? { snapshot: resumed.snapshot, result: resumed.result } : current.lastDecision };
+          }
+          return { ...current, session };
         }),
       );
     }
@@ -230,17 +256,18 @@ export function MatchApp() {
             <div className="brand-mark" aria-hidden="true">T<span>:</span>J</div>
             <div className="round-card">
               <span className="card-label">Round</span>
-              <strong>{String(core.roundIndex + 1).padStart(2, '0')}</strong>
-              <span className="card-note">Shared sequence</span>
+              <strong>{String(core.human.sequenceIndex + 1).padStart(2, '0')}</strong>
+              <span className="card-note">Your piece</span>
+              <span className="card-note">{core.human.survivedPieces} pieces survived</span>
             </div>
             <div className="piece-card">
               <span className="card-label">Current</span>
-              <strong className={`piece-letter piece-letter--${core.currentPiece.toLowerCase()}`}>{core.currentPiece}</strong>
-              <span className="card-note">Both players</span>
+              <strong className={`piece-letter piece-letter--${humanPiece.toLowerCase()}`}>{humanPiece}</strong>
+              <span className="card-note">Your board</span>
             </div>
             <div className="piece-card">
               <span className="card-label">Next up</span>
-              <strong className={`piece-letter piece-letter--${nextPiece.toLowerCase()}`}>{nextPiece}</strong>
+              <strong className={`piece-letter piece-letter--${humanNextPiece.toLowerCase()}`}>{humanNextPiece}</strong>
               <span className="card-note">Seven-bag draw</span>
             </div>
           </div>
@@ -283,8 +310,9 @@ export function MatchApp() {
             <div className="jev-side-note">
               <span className="vertical-rule" />
               <span>One sequence<br />Two independent boards</span>
-              <strong>{core.currentPiece} <span>→</span> {nextPiece}</strong>
+              <strong>{jevPiece} <span>→</span> {jevNextPiece}</strong>
               <small>Current / Next</small>
+              <small>{core.jev.survivedPieces} pieces survived</small>
             </div>
           </div>
         </section>
@@ -292,7 +320,7 @@ export function MatchApp() {
         <section className="decision-area" aria-labelledby="match-status-heading">
           <div className="decision-heading">
             <p className="eyebrow">03 / Match status</p>
-            <span className="round-indicator">ROUND {String(core.roundIndex + 1).padStart(2, '0')}</span>
+            <span className="round-indicator">HUMAN {String(core.human.sequenceIndex + 1).padStart(2, '0')} · JEV {String(core.jev.sequenceIndex + 1).padStart(2, '0')}</span>
           </div>
           <div className="decision-main" aria-live="polite">
             <div>
@@ -309,12 +337,22 @@ export function MatchApp() {
                   humanBoardRef.current?.focus();
                 }}>Start match <span aria-hidden="true">↗</span></button>
               )}
-              {state.session.phase === 'playing' && state.decision === null && (
+              {state.session.phase === 'playing' && (
                 <button type="button" className="action-button" onClick={() => setState((current) => ({ ...current, session: pauseMatchSession(current.session) }))}>Pause <span aria-hidden="true">Ⅱ</span></button>
               )}
-              {state.session.phase === 'paused' && state.decision === null && !state.decisionSetupFailed && (
+              {state.session.phase === 'paused' && !state.decisionSetupFailed && (
                 <button type="button" className="action-button" onClick={() => {
-                  setState((current) => ({ ...current, session: resumeMatchSession(current.session) }));
+                  setState((current) => {
+                    const session = resumeMatchSession(current.session);
+                    if (session === current.session) return current;
+                    if (current.decision?.status === 'ready-to-apply') {
+                      const resumed = resumeCompletedJevDecision({ ...current.decision, session: current.session });
+                      return { ...current, session: resumed.session, decision: null,
+                        completedDecisions: current.completedDecisions + 1,
+                        lastDecision: resumed.result ? { snapshot: resumed.snapshot, result: resumed.result } : current.lastDecision };
+                    }
+                    return { ...current, session };
+                  });
                   humanBoardRef.current?.focus();
                 }}>Resume <span aria-hidden="true">▶</span></button>
               )}

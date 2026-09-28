@@ -4,13 +4,13 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, application-level keyboard controls, Jev decision facts panel, Playwright browser-flow coverage, and Vercel environment setup documentation are implemented. Task 7.1 adds a deterministic shortlist of up to 12 placements, evaluates the known next piece, validates the exact shortlist on the server, and labels Jev's probabilities as preferences among those options. Task 7.2 handles game keys without requiring board focus and restores visible play focus after Start and Resume. The current production deployment still runs the earlier shared-round behavior until the gameplay revision PRs are merged and deployed. The browser currently pauses both boards during Jev decisions. E2E tests cover start, focus restoration, keyboard movement, decision success/retry, a human round, pause/resume, restart, and a terminal result with Jev mocked. The Vercel project is connected to GitHub; Preview and Production deployments have both been verified with Jev decisions. Production also fails closed and preserves the round when the server credential is unavailable.
+The Next.js App Router foundation, deterministic Tetris engine, server-side Jev decision route, split-screen match view, application-level keyboard controls, Jev decision facts panel, and Vercel environment setup are implemented. Task 7.1 adds a deterministic shortlist of up to 12 placements, evaluates the known next piece, validates the exact shortlist on the server, and labels Jev's probabilities as preferences among those options. Task 7.2 handles game keys without requiring board focus and restores visible play focus after Start and Resume. Task 7.3 in this PR gives each board an independent cursor into the same seeded sequence: human gravity continues during Jev latency or retry, Jev advances after its decision, manual pause stops both, and results compare survived-piece counts. Production keeps the earlier shared-round behavior until this gameplay PR is merged and deployed. Task 7.4 is approved to add a bounded accessible 70/30 Jev-board/decision-panel divider; final validation follows as task 7.5. Playwright flows mock Jev and cover independent advancement, pause/resume, retry, focus, and match flow. The Vercel project is connected to GitHub; Preview and Production deployments have been verified with Jev decisions.
 
-OpenSpec implementation progress is **20 of 22 tasks complete on this branch**. Task 7.1 is merged, and task 7.2 is implemented in this PR; tasks 7.3 and 7.4 remain. See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **20 of 23 tasks complete before this PR**. Task 7.3 is implemented on the current feature branch. After it is merged, task 7.4 will implement the approved manual panel resizing, followed by the task 7.5 final validation gate. See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ### Approved gameplay revision
 
-The deployed app still has the shared round barrier until the remaining gameplay PRs are merged and deployed. Jev chooses from a deterministic shortlist evaluated for line clears, holes, height, bumpiness, and the known next piece. Task 7.2 makes game keys work without a board click and returns focus to the play area after Start and Resume. Task 7.3 will let each player progress independently through the same seeded sequence. A Jev API delay or retry will stop only Jev; manual pause will stop both players; the winner will be determined by pieces survived rather than API speed. Each implementation task will be a separate PR from the latest `main`.
+Until this PR is merged and deployed, the live app still has the shared round barrier. Jev chooses from a deterministic shortlist evaluated for line clears, holes, height, bumpiness, and the known next piece. Task 7.2 makes game keys work without a board click and returns focus to the play area after Start and Resume. Task 7.3 implements independent progression through the same seeded sequence. A Jev API delay or retry stops only Jev; manual pause stops both players; the winner is determined by pieces survived rather than API speed. Task 7.4 will let the user resize Jev's board and decision panel, starting at 70/30, while leaving the human column fixed. Each implementation task is a separate PR from the latest `main`.
 
 Jev's returned probabilities will remain its preferences among the submitted options. They are not estimates of the chance to clear a line or win. The shortlist will be calculated and validated by the shared rules, and Jev will still make the final placement choice. See the [OpenSpec design](openspec/changes/play-tetris-against-jev/design.md) for the exact contract and task order.
 
@@ -109,7 +109,7 @@ These are the OpenSpec requirements; they describe the target behavior and are n
 
 - A deterministic 10 by 20 Tetris board with two hidden spawn rows and standard tetromino rotation rules.
 - One seeded seven-bag sequence with an independent sequence cursor per player. Human gravity runs every 700 ms; Jev advances after each API-selected placement. The winner survives more pieces from the same sequence.
-- A desktop layout allocating 50% of the viewport area to the human board, 35% to Jev's board, and 15% to Jev's decision panel.
+- A desktop layout allocating 50% of the viewport area to the human board, and initially splitting the other half 70/30 between Jev's board and decision panel. The user can resize that right-column split within 50/50 to 80/20 bounds.
 - Jev chooses from a server-validated shortlist of legal placements with calculated board outcomes. If a request fails or times out, Jev stops and retries with the same decision state while the human can keep playing; there is no substitute player.
 - Game keys work during active human play without requiring board focus, while native controls and browser shortcuts retain their behavior.
 - The match stays in the browser. The MVP has no accounts, database, persistence, multiplayer, or garbage attacks.
@@ -158,15 +158,15 @@ The engine tests cover all 28 piece/orientation combinations, deterministic spaw
 
 ## Shared match core
 
-The pure match state and transitions live in [`src/game/match.ts`](src/game/match.ts). `createMatchCore(seed)` normalizes a finite integer seed, shuffles a seven-bag with a serializable xorshift32 generator, and spawns the same current piece on separate human and Jev boards. The complete match core can be JSON-serialized and restored without losing future piece draws.
+The pure match state and transitions live in [`src/game/match.ts`](src/game/match.ts). `createMatchCore(seed)` normalizes a finite integer seed and both players use independent sequence cursors to retrieve pieces from the same deterministic seven-bag stream. Each player stores its board, active piece, sequence index, survived-piece count, and top-out status. The state can be JSON-serialized and restored; indexed lookups reproduce the same sequence after different player speeds.
 
-`applySharedGravityTick(state)` models one shared 700 ms gravity step: each active board moves or locks independently, while a player who has already locked keeps the same player state as the other board continues. `advanceMatchRound(state)` preserves the current state until both players lock, then spawns one shared next piece on both boards and rolls over to a new seven-bag when needed. A spawn failure tops out only the affected player. These core functions are pure transitions. Task 3.2 adds the lifecycle wrapper documented below; browser timer scheduling remains a later client task.
+`applyHumanGravityTick(state)` advances only the human board. Jev does not use gravity: its board locks the canonical placement returned by its current API request, then starts the next indexed piece. A successful lock advances only that player's cursor; a top-out ends that player's progression. These are pure transitions, with browser scheduling in the match view.
 
 ## Match lifecycle
 
 The serializable match-session state and transitions live in [`src/game/match-session.ts`](src/game/match-session.ts). A session begins in `ready`; start moves it to `playing`. Pause and resume change only the phase, preserving the core, boards, active pieces, round, and seeded sequence. Restart receives a fresh seed from its caller, creates a clean core, clears the result, and begins playing immediately.
 
-`tickMatchSession(state)` is a pure transition with no browser timer. It ignores ticks while the session is ready, paused, or finished. While playing, it applies one shared gravity tick, ends with a win when one player tops out or a draw when both top out in the same gravity event, and advances as soon as both players lock. It also resolves single or simultaneous top-outs caused by spawning the next shared piece. The client view schedules one `MATCH_GRAVITY_INTERVAL_MS` interval while playing; keyboard input is added in task 5.2.
+`tickMatchSession(state)` is a pure human gravity transition. It ignores ticks while ready, paused, or finished. Manual pause stops both progressions. A Jev pending request or retry-required state does not pause the human clock or controls. A piece increments the survived count only after a safe spawn; the match ends when one player has survived more pieces than a topped-out opponent, or both top out. Equal final counts draw. The client view schedules a 700 ms human interval and Jev decisions independently, with a 350 ms minimum visible cadence between Jev moves.
 
 ## Jev decision route
 
@@ -176,7 +176,7 @@ The handler reads `JEV_API_KEY` only from its server environment and sends it as
 
 ## Decision pause and retry
 
-[`src/game/jev-decision-session.ts`](src/game/jev-decision-session.ts) wraps the generic match lifecycle with pure, serializable `pending`, `retry-required`, and `complete` decision states. `beginJevDecision(session, decisionId)` accepts a playing session with an active, unlocked Jev piece, clones the session, pauses both boards, and captures the seed, sequence index, current and next piece, board, ranked shortlist (up to 12 options), and serialized POST body. The captured session and snapshot are recursively frozen. Invalid begin states return `null`.
+[`src/game/jev-decision-session.ts`](src/game/jev-decision-session.ts) wraps the match lifecycle with pure, serializable `pending`, `retry-required`, `ready-to-apply`, and `complete` decision states. `beginJevDecision(session, decisionId)` accepts a playing session with an active Jev piece and captures the seed, Jev sequence index, current and next piece, board, ranked shortlist (up to 12 options), and serialized POST body. The human session keeps running independently. The captured snapshot is recursively frozen. Invalid begin states return `null`.
 
 The host must supply a **distinct decision ID for every new decision**, including restarts with the same seed. Each attempt has a `{ decisionId, attempt }` token. Capture this token before awaiting HTTP and pass it back to completion/failure against the **latest** coordinator state. A stale token or duplicate completion is ignored. Restart must discard the old coordinator and create a new decision ID.
 
@@ -185,7 +185,7 @@ The host must supply a **distinct decision ID for every new decision**, includin
 ```ts
 const initial = beginJevDecision(playingSession, crypto.randomUUID());
 if (initial) {
-  // Store initial as the current coordinator; gate keyboard/gravity while pending.
+  // Store initial as the current Jev coordinator; human controls keep running.
   const token = initial.token;
   const response = await requestJevDecision(initial.snapshot);
   // In the host's state reducer, use its latest state, not the captured initial:
@@ -195,19 +195,19 @@ if (initial) {
 }
 ```
 
-Failures preserve the same paused session and snapshot. Only an explicit user retry calls `retryJevDecision(failed)` and sends its snapshot again; the POST body is byte-identical, including the seed, board, piece, and candidate list. A valid result must select a captured candidate and contain a finite probability in [0, 1] for every candidate with no extra keys. Probabilities are neither normalized nor rounded. Optional valid token counts are retained; malformed optional usage is omitted. The client ignores supplied board simulations and applies only its captured canonical outcome.
+Failures preserve the same decision snapshot while the human keeps playing. Only an explicit user retry calls `retryJevDecision(failed)` and sends its snapshot again; the POST body is byte-identical, including the seed, board, piece, and candidate list. A valid result must select a captured candidate and contain a finite probability in [0, 1] for every candidate with no extra keys. Probabilities are neither normalized nor rounded. Optional valid token counts are retained; malformed optional usage is omitted. The client ignores supplied board simulations and applies only its captured canonical outcome to the latest live match state. If a response arrives during manual pause, it remains ready-to-apply until resume.
 
-Completion locks Jev and uses `settleMatchSession` to resolve top-out and the round barrier without applying gravity to the human. If the human has already locked, the next shared piece spawns once; otherwise the human continues its current piece. The result retains canonical board effects, next-piece lookahead outcomes, and probabilities for the decision panel.
+Completion locks Jev's piece and advances only Jev to its next sequence item. The human piece and board are preserved. A delayed response is ignored if restart, finish, or a newer Jev piece made its snapshot stale. The result retains canonical board effects, next-piece lookahead outcomes, and probabilities for the decision panel.
 
-The match view gates the shared clock while a decision is pending or requires retry and does not offer generic resume in those states. It shows pending and retry status and offers an explicit same-snapshot retry. Current route and UI tests use mocked HTTP responses; no live TypeSafe decision is sent by the automated suite.
+The match view runs the human gravity clock independently from Jev's request and decision cadence. It shows separate sequence positions and survived-piece counts, Jev pending/retry status, and an explicit same-snapshot retry. Manual pause/resume remains available during a Jev request. Current route and UI tests use mocked HTTP responses; no live TypeSafe decision is sent by the automated suite.
 
 ## Split-screen match view
 
-[`src/client/match-app.tsx`](src/client/match-app.tsx) owns the browser session and Jev decision coordinator. Start, pause, resume, retry, and new-match buttons call the existing pure transitions. Each new match receives a fresh seed and unique match ID; each round's Jev decision has a distinct ID so late responses from an earlier attempt or match are ignored. The browser makes one same-origin request per pending attempt and aborts it when that attempt is replaced. If it cannot prepare a legal Jev decision, it pauses the match and shows a stopped state rather than advancing Jev through gravity.
+[`src/client/match-app.tsx`](src/client/match-app.tsx) owns the browser session and Jev decision coordinator. Start, pause, resume, retry, and new-match buttons call the pure transitions. Each new match receives a fresh seed and unique match ID; each Jev piece decision has a distinct ID so late responses from an earlier attempt or match are ignored. The browser makes one same-origin request per pending attempt and aborts it when that attempt is replaced. Human and Jev have separate sequence positions, and the interface reports each player's survived-piece count.
 
-[`src/client/board-view.tsx`](src/client/board-view.tsx) draws each player's settled cells and active piece from the shared engine. It renders only the 20 visible rows. `peekNextPiece` previews the next shared piece without consuming the seven-bag, including at a bag boundary. Both boards and the round, current piece, upcoming piece, player labels, and ready/playing/paused/Jev pending/retry/finished states are visible.
+[`src/client/board-view.tsx`](src/client/board-view.tsx) draws each player's settled cells and active piece from the shared engine. It renders only the 20 visible rows. Each sidebar previews that player's next indexed piece. Both boards, separate sequence positions, piece previews, player labels, survived-piece counts, and ready/playing/paused/Jev pending/retry/finished states are visible.
 
-At desktop width, [`app/globals.css`](app/globals.css) uses two equal-width columns. The human region fills the left 50%; the right column uses a 70/30 row split for a Jev region of 35% and a decision/status region of 15%. The decision panel retains the last completed choice and its returned probability, up to three alternatives ranked by returned probability, and canonical simulated current and next-piece lines, aggregate height, holes, and bumpiness. Probabilities are labeled as Jev's preference among evaluated options; they do not estimate line-clear or win chances. Token usage appears only when returned; latency and absent usage are labeled unavailable. The panel contains no generated natural-language explanation. Below 950 px the regions stack vertically.
+At desktop width, [`app/globals.css`](app/globals.css) uses two equal-width columns. The human region fills the left 50%; the right column defaults to a 70/30 row split for a Jev region of 35% and a decision/status region of 15%. Task 7.4 adds accessible resizing within 50/50 and 80/20 bounds while keeping the human region fixed. The decision panel retains the last completed choice and its returned probability, up to three alternatives ranked by returned probability, and canonical simulated current and next-piece lines, aggregate height, holes, and bumpiness. Probabilities are labeled as Jev's preference among evaluated options; they do not estimate line-clear or win chances. Token usage appears only when returned; latency and absent usage are labeled unavailable. The panel contains no generated natural-language explanation. Below 950 px the regions stack vertically.
 
 ### Keyboard controls
 
@@ -222,7 +222,7 @@ Game keys work during active human play without requiring the board to have focu
 | Space | Hard drop and lock |
 | P | Pause or resume manual play |
 
-Handled game keys prevent page scrolling wherever focus is in the app. Movement is disabled while the match is paused, a human piece is already locked, or Jev's decision is pending/requires retry. `P` cannot resume a Jev decision pause.
+Handled game keys prevent page scrolling wherever focus is in the app. Human movement is disabled while the match is paused, the human has topped out, or the match is finished. `P` toggles manual pause; Jev pending/retry does not disable human play.
 
 ## Development workflow
 

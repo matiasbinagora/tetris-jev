@@ -7,7 +7,7 @@ This project needs a playable browser demo that makes Jev's decisions observable
 ## What Changes
 
 - Add a deterministic Tetris rules engine and one seeded piece sequence with an independent sequence cursor and play clock for each board.
-- Add a desktop-first split-screen game: the human board fills the left half; Jev's smaller board occupies the upper right; a decision panel fills the lower right.
+- Add a desktop-first split-screen game: the human board fills the left half; Jev's smaller board occupies the upper right; a decision panel fills the lower right. The user can resize the Jev board and decision panel with an accessible divider while the default layout remains 50% / 35% / 15%.
 - Add a server-side Jev decision route that validates a deterministic shortlist of legal landings, describes their calculated Tetris outcomes and one-piece lookahead, calls the TypeSafe Jev API, and returns its selected placement and available decision metadata.
 - Keep the human clock and controls active while Jev is deciding or waiting for retry. Manual pause stops both players. Retry preserves Jev's exact decision snapshot without substituting another decision maker.
 - Accept game keys during active play without requiring the human board to have focus, while preserving browser shortcuts and native controls.

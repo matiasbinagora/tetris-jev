@@ -13,6 +13,7 @@ The Next.js Tetris demo is deployed and already has a deterministic engine, seed
 - Give both boards the same seeded piece at each sequence position without making the faster player wait.
 - Allow the human to play while Jev is pending or retry-required and accept game keys without a board click.
 - Preserve the desktop 50% human / 35% Jev board / 15% decision-panel layout and server-only key handling.
+- Let the user temporarily enlarge Jev's decision panel by resizing the vertical split in the right column.
 
 **Non-Goals:**
 
@@ -46,6 +47,10 @@ Keep Jev's decision state separate from the overall match phase. Beginning a dec
 
 Handle game keys at the application/window level while the match is active so a board click is unnecessary. Ignore composing input, editable targets, native buttons and other interactive controls, and Ctrl/Meta/Alt shortcuts. Prevent scrolling only for keys handled as game controls. Move visible focus back to the human play area after Start and Resume. Preserve native button keyboard activation. `P` toggles manual pause; it does not dismiss a Jev error. Movement affects only the human board and remains available while Jev is pending or retry-required. Show each player's own current/next piece and survived-piece count, the winner comparison, and Jev's separate pending/retry status. Preserve the existing CSS Grid area allocation.
 
+### Resizable Jev board and decision panel
+
+Keep the human column fixed at half of the desktop viewport. Add a horizontal separator between Jev's board area and the decision panel in the right column. The default split stays 70% / 30%, preserving the approved 50% / 35% / 15% layout until the user changes it. Let the user drag the separator with mouse or touch and adjust it with Up/Down arrow keys while focused. Bound the Jev board between 50% and 80% of the right column, which gives the decision panel the remaining 50% to 20%. Expose the separator's orientation and current/minimum/maximum values to assistive technology. Keep the adjustment in component state only; a page reload restores the default. At the existing narrow-screen breakpoint, stack the regions and hide the resize separator.
+
 ### Test and deployment boundaries
 
 Add pure tests for sequence equality across different player speeds, candidate ranking and line-clear retention, next-piece lookahead, top-out count resolution, manual pause and stale response handling. Add route tests that reject forged shortlists and verify safe credential handling. Update UI and Playwright coverage for input after Start/Resume, human movement during Jev pending/retry, independent Jev progression, and piece-count win/draw. Mock `/api/jev/decision` in automated browser flows. Verify the strategic payload with a few fixed board cases and one configured Preview decision before Production. Keep the full lint, unit, E2E, typecheck, build, and strict OpenSpec validation gate at the end of the change.
@@ -55,7 +60,8 @@ Add pure tests for sequence equality across different player speeds, candidate r
 1. Strategy: deterministic shortlist, canonical route validation, useful Jev criteria, probability labels, and strategy scenarios.
 2. Keyboard: application-level controls and focus after match buttons.
 3. Independent progression: separate cursors and clocks, Jev-only pending/retry, manual pause, and survived-piece results.
-4. Final validation: run all repository checks and verify Preview before updating Production.
+4. Resizable Jev panel: an accessible 70/30 default divider with bounded manual resizing.
+5. Final validation: run all repository checks and verify Preview before updating Production.
 
 Each numbered task gets its own feature branch and PR from the latest merged `main`. This design and the revised OpenSpec contract are reviewed in a planning PR before implementation.
 

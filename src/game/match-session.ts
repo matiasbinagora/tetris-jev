@@ -1,15 +1,9 @@
-import {
-  advanceMatchRound,
-  applySharedGravityTick,
-  createMatchCore,
-  type MatchCoreState,
-} from './match';
+import { applyHumanGravityTick, createMatchCore, lockMatchPlayer, type MatchCoreState } from './match';
+import type { Board } from './engine';
 
 export type MatchPhase = 'ready' | 'playing' | 'paused' | 'finished';
 export type MatchPlayer = 'human' | 'jev';
-export type MatchResult =
-  | { kind: 'win'; winner: MatchPlayer }
-  | { kind: 'draw' };
+export type MatchResult = { kind: 'win'; winner: MatchPlayer } | { kind: 'draw' };
 
 export interface MatchSessionState {
   core: MatchCoreState;
@@ -18,9 +12,13 @@ export interface MatchSessionState {
 }
 
 function resultForTopOut(core: MatchCoreState): MatchResult | null {
-  if (core.human.topOut && core.jev.topOut) return { kind: 'draw' };
-  if (core.human.topOut) return { kind: 'win', winner: 'jev' };
-  if (core.jev.topOut) return { kind: 'win', winner: 'human' };
+  const { human, jev } = core;
+  if (human.topOut && jev.topOut) {
+    if (human.survivedPieces === jev.survivedPieces) return { kind: 'draw' };
+    return { kind: 'win', winner: human.survivedPieces > jev.survivedPieces ? 'human' : 'jev' };
+  }
+  if (human.topOut && jev.survivedPieces > human.survivedPieces) return { kind: 'win', winner: 'jev' };
+  if (jev.topOut && human.survivedPieces > jev.survivedPieces) return { kind: 'win', winner: 'human' };
   return null;
 }
 
@@ -44,28 +42,28 @@ export function restartMatchSession(freshSeed: number): MatchSessionState {
   return { core: createMatchCore(freshSeed), phase: 'playing', result: null };
 }
 
-export function tickMatchSession(state: MatchSessionState): MatchSessionState {
+export function resolveMatchSession(state: MatchSessionState): MatchSessionState {
   if (state.phase !== 'playing') return state;
-
-  return settleMatchSession({ ...state, core: applySharedGravityTick(state.core) });
+  const result = resultForTopOut(state.core);
+  return result === null ? state : { ...state, phase: 'finished', result };
 }
 
-/** Resolve locks and the round barrier without applying gravity. */
-export function settleMatchSession(state: MatchSessionState): MatchSessionState {
+export function lockMatchSessionPlayer(
+  state: MatchSessionState,
+  player: MatchPlayer,
+  board: Board,
+  topOut: boolean,
+): MatchSessionState {
+  if (state.phase !== 'playing' || state.core[player].topOut) return state;
+  return resolveMatchSession({ ...state, core: lockMatchPlayer(state.core, player, board, topOut) });
+}
+
+export function tickMatchSession(state: MatchSessionState): MatchSessionState {
   if (state.phase !== 'playing') return state;
-  const tickedCore = state.core;
-  const result = resultForTopOut(tickedCore);
-  if (result !== null) {
-    return { ...state, core: tickedCore, phase: 'finished', result };
-  }
+  return resolveMatchSession({ ...state, core: applyHumanGravityTick(state.core) });
+}
 
-  const bothLocked =
-    tickedCore.human.lockedThisRound && tickedCore.jev.lockedThisRound;
-  const nextCore = bothLocked ? advanceMatchRound(tickedCore) : tickedCore;
-  const spawnResult = resultForTopOut(nextCore);
-  if (spawnResult !== null) {
-    return { ...state, core: nextCore, phase: 'finished', result: spawnResult };
-  }
-
-  return { ...state, core: nextCore, phase: 'playing', result: null };
+/** Kept as the shared lifecycle entry point; only the human has a gravity clock. */
+export function settleMatchSession(state: MatchSessionState): MatchSessionState {
+  return resolveMatchSession(state);
 }
