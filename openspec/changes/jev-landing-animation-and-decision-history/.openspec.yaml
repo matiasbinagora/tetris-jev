@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-28
+goal: Improve demo readability by making Jev's drops visible and keeping recent
+  decision facts available throughout a match.
