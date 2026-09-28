@@ -66,6 +66,17 @@ function beginJevIfActive(
 }
 
 function statusFor(state: ViewState): { name: string; message: string } {
+  if (state.session.phase === 'finished') {
+    const result = state.session.result;
+    return {
+      name: 'Finished',
+      message: result?.kind === 'draw'
+        ? 'The match ended in a draw.'
+        : result?.winner === 'human'
+          ? 'You win this match.'
+          : 'Jev wins this match.',
+    };
+  }
   if (state.decisionSetupFailed) {
     return { name: 'Match stopped', message: 'Jev could not prepare a legal decision for this round.' };
   }
@@ -91,17 +102,6 @@ function statusFor(state: ViewState): { name: string; message: string } {
       return { name: 'Ready', message: 'The same piece sequence is prepared for both boards.' };
     case 'playing':
       return { name: 'Playing', message: 'Your board has its own gravity clock; Jev plays between decisions.' };
-    case 'finished': {
-      const result = state.session.result;
-      return {
-        name: 'Finished',
-        message: result?.kind === 'draw'
-          ? 'The match ended in a draw.'
-          : result?.winner === 'human'
-            ? 'You win this match.'
-            : 'Jev wins this match.',
-      };
-    }
   }
 }
 
@@ -163,7 +163,7 @@ export function MatchApp() {
       setState((current) => {
         if (current.session.phase !== 'playing') return current;
         const session = tickMatchSession(current.session);
-        return { ...current, session };
+        return { ...current, session, ...(session.phase === 'finished' ? { decision: null } : {}) };
       });
     }, MATCH_GRAVITY_INTERVAL_MS);
     return () => window.clearInterval(interval);
@@ -186,6 +186,11 @@ export function MatchApp() {
   const humanNextPiece = peekNextPlayerPiece(core, core.human);
   const jevPiece = getPlayerPiece(core, core.jev);
   const jevNextPiece = peekNextPlayerPiece(core, core.jev);
+  const sequenceLead = core.human.sequenceIndex === core.jev.sequenceIndex
+    ? 'Same pace'
+    : core.human.sequenceIndex > core.jev.sequenceIndex
+      ? `You +${core.human.sequenceIndex - core.jev.sequenceIndex}`
+      : `Jev +${core.jev.sequenceIndex - core.human.sequenceIndex}`;
   const humanStatus = core.human.topOut
     ? 'Topped out'
         : core.human.lockedThisRound
@@ -216,7 +221,9 @@ export function MatchApp() {
         (action) => setState((current) => {
           if (current.session.phase !== 'playing') return current;
           const session = applyHumanGameAction(current.session, action);
-          return session === current.session ? current : { ...current, session };
+          return session === current.session ? current : {
+            ...current, session, ...(session.phase === 'finished' ? { decision: null } : {}),
+          };
         }),
         () => setState((current) => {
           const session = current.session.phase === 'playing'
@@ -320,7 +327,7 @@ export function MatchApp() {
         <section className="decision-area" aria-labelledby="match-status-heading">
           <div className="decision-heading">
             <p className="eyebrow">03 / Match status</p>
-            <span className="round-indicator">HUMAN {String(core.human.sequenceIndex + 1).padStart(2, '0')} · JEV {String(core.jev.sequenceIndex + 1).padStart(2, '0')}</span>
+            <span className="round-indicator">HUMAN {String(core.human.sequenceIndex + 1).padStart(2, '0')} · JEV {String(core.jev.sequenceIndex + 1).padStart(2, '0')} · {sequenceLead}</span>
           </div>
           <div className="decision-main" aria-live="polite">
             <div>

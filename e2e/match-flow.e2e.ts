@@ -35,6 +35,7 @@ test('keeps human controls live during Jev latency and starts Jev next piece ind
   await humanControls.press('Space');
   await expect(page.locator('.round-indicator')).toContainText('HUMAN 02');
   await expect(page.locator('.round-indicator')).toContainText('JEV 01');
+  await expect(page.locator('.round-indicator')).toContainText('You +1');
 
   release();
   await expect(page.getByRole('region', { name: 'Jev decision facts' })).toBeVisible();
@@ -79,6 +80,20 @@ test('retry resubmits the identical Jev snapshot while the human can keep playin
   await expect(page.locator('.round-indicator')).toContainText('JEV 02');
   expect(requests).toHaveLength(2);
   expect(JSON.stringify(requests[1])).toBe(JSON.stringify(requests[0]));
+});
+
+test('waits for Jev to pass the human survived-piece count after the human tops out', async ({ page }) => {
+  await mockJevDecisionRoute(page, successfulChoice);
+  await page.goto('/');
+  await page.getByRole('button', { name: /start match/i }).click();
+  const humanControls = page.getByRole('group', { name: 'Human game board controls' });
+  const humanTopOut = page.locator('.player-area--human .status-pill').getByText('Topped out');
+  for (let piece = 0; piece < 40 && !(await humanTopOut.isVisible().catch(() => false)); piece += 1) {
+    await humanControls.press('Space');
+  }
+  await expect(humanTopOut).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('heading', { name: 'Finished' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Jev wins this match.')).toBeVisible();
 });
 
 test('restores play focus after Start and Resume and accepts keys away from the board', async ({ page }) => {
