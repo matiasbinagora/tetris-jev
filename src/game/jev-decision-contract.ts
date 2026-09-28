@@ -1,4 +1,5 @@
-import type { ActivePiece, Board, LandingCandidate } from './engine';
+import type { ActivePiece, Board, PieceType } from './engine';
+import type { RankedLanding } from './jev-placement';
 
 export interface SubmittedLanding {
   id: string;
@@ -7,8 +8,10 @@ export interface SubmittedLanding {
 
 export interface JevDecisionRequest {
   seed: number;
+  sequenceIndex: number;
   board: Board;
   piece: ActivePiece;
+  nextPiece: PieceType;
   candidates: SubmittedLanding[];
 }
 
@@ -19,7 +22,7 @@ export interface JevTokenUsage {
 
 export interface JevDecisionResult {
   choice: string;
-  selectedCandidate: LandingCandidate;
+  selectedCandidate: RankedLanding;
   probabilities: Record<string, number>;
   usage?: JevTokenUsage;
 }
@@ -31,7 +34,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Treat the captured candidates as the only authority for board outcomes. */
 export function parseJevDecisionResult(
-  candidates: LandingCandidate[],
+  candidates: RankedLanding[],
   value: unknown,
 ): JevDecisionResult | null {
   if (!isRecord(value) || typeof value.choice !== 'string' || !isRecord(value.probabilities)) return null;

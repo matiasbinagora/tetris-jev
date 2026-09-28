@@ -10,6 +10,7 @@ import {
   advanceMatchRound,
   applySharedGravityTick,
   createMatchCore,
+  getPieceAtSequenceIndex,
   peekNextPiece,
   type MatchCoreState,
 } from './match';
@@ -73,6 +74,32 @@ describe('peekNextPiece', () => {
     expect(peekNextPiece(JSON.parse(snapshot) as MatchCoreState)).toBe(preview);
     expect(JSON.stringify(state)).toBe(snapshot);
   });
+});
+
+describe('getPieceAtSequenceIndex', () => {
+  it('matches live seven-bag draws across three bag boundaries', () => {
+    const seed = 987654321;
+    let state = createMatchCore(seed);
+    const expected = [state.currentPiece];
+    for (let index = 1; index < 21; index += 1) {
+      state = advanceMatchRound(withBothPlayersLocked(state));
+      expected.push(state.currentPiece);
+    }
+
+    expect(expected.map((_, index) => getPieceAtSequenceIndex(seed, index))).toEqual(expected);
+  });
+
+  it('normalizes the seed exactly like match creation', () => {
+    expect(getPieceAtSequenceIndex(0, 0)).toBe(createMatchCore(0).currentPiece);
+    expect(getPieceAtSequenceIndex(-1, 0)).toBe(createMatchCore(-1).currentPiece);
+  });
+
+  it.each([-1, 1.5, Number.NaN, 10_001])(
+    'rejects invalid sequence index %s',
+    (index) => {
+      expect(() => getPieceAtSequenceIndex(123, index)).toThrow(RangeError);
+    },
+  );
 });
 
 describe('applySharedGravityTick', () => {

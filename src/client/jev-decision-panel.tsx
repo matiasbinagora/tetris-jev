@@ -25,7 +25,9 @@ function formatProbability(probability: number): string {
 }
 
 function outcomeLabel(candidate: JevDecisionResult['selectedCandidate']): string {
-  return `Lines cleared: ${candidate.linesCleared} · Aggregate height: ${candidate.metrics.aggregateHeight} · Holes: ${candidate.metrics.holes} · Bumpiness: ${candidate.metrics.bumpiness}`;
+  const followUp = candidate.followUp;
+  return `Lines cleared: ${candidate.linesCleared} · Aggregate height: ${candidate.metrics.aggregateHeight} · Holes: ${candidate.metrics.holes} · Bumpiness: ${candidate.metrics.bumpiness} · ` +
+    `Next piece: ${followUp.linesCleared} ${followUp.linesCleared === 1 ? 'line' : 'lines'} · Height: ${followUp.metrics.aggregateHeight} · Holes: ${followUp.metrics.holes} · Bumpiness: ${followUp.metrics.bumpiness}${followUp.topOut ? ' · Top-out' : ''}`;
 }
 
 export function JevDecisionPanel({ facts }: JevDecisionPanelProps) {
@@ -57,6 +59,7 @@ export function JevDecisionPanel({ facts }: JevDecisionPanelProps) {
         <span>Calculated board outcomes</span>
       </div>
       <div className="decision-facts__metadata" aria-label="Returned Jev metrics">
+        <span>Jev preference among evaluated options</span>
         <span>Latency unavailable</span>
         <span>
           {result.usage
@@ -64,7 +67,7 @@ export function JevDecisionPanel({ facts }: JevDecisionPanelProps) {
             : 'Token usage unavailable'}
         </span>
       </div>
-      <ol className="decision-facts__placements" aria-label="Placements by returned probability">
+      <ol className="decision-facts__placements" aria-label="Placements by Jev preference among evaluated options">
         {placements.map(({ candidate, probability, label }) => (
           <li
             key={candidate.id}

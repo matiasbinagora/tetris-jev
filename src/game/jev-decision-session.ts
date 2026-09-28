@@ -1,13 +1,17 @@
-import { enumerateLegalLandingCandidates, type ActivePiece, type Board, type LandingCandidate } from './engine';
+import type { ActivePiece, Board } from './engine';
+import { rankJevPlacements, type RankedLanding } from './jev-placement';
 import { parseJevDecisionResult, type JevDecisionRequest, type JevDecisionResult } from './jev-decision-contract';
 import { pauseMatchSession, settleMatchSession, type MatchSessionState } from './match-session';
+import { peekNextPiece } from './match';
 
 export interface JevAttemptToken { decisionId: string; attempt: number }
 export interface JevDecisionSnapshot {
   seed: number;
+  sequenceIndex: number;
   board: Board;
   piece: ActivePiece;
-  candidates: LandingCandidate[];
+  nextPiece: import('./engine').PieceType;
+  candidates: RankedLanding[];
   requestBody: string;
 }
 export interface JevDecisionSession {
@@ -33,15 +37,17 @@ export function beginJevDecision(session: MatchSessionState, decisionId: string)
   const paused = pauseMatchSession(structuredClone(session));
   const board = paused.core.jev.board;
   const piece = paused.core.jev.activePiece!;
-  const candidates = enumerateLegalLandingCandidates(board, piece);
-  if (candidates.length === 0 || candidates.length > 255) return null;
+  const sequenceIndex = paused.core.roundIndex;
+  const nextPiece = peekNextPiece(paused.core);
+  const candidates = rankJevPlacements(board, piece, nextPiece);
+  if (candidates.length === 0) return null;
   const request: JevDecisionRequest = {
-    seed: paused.core.seed, board, piece,
+    seed: paused.core.seed, sequenceIndex, board, piece, nextPiece,
     candidates: candidates.map(({ id, lockedPiece }) => ({ id, lockedPiece })),
   };
   return {
     session: freezeTree(paused),
-    snapshot: freezeTree({ seed: request.seed, board, piece, candidates, requestBody: JSON.stringify(request) }),
+    snapshot: freezeTree({ seed: request.seed, sequenceIndex, board, piece, nextPiece, candidates, requestBody: JSON.stringify(request) }),
     token: { decisionId, attempt: 1 }, status: 'pending', result: null,
   };
 }

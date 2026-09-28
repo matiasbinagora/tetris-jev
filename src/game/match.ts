@@ -9,6 +9,7 @@ import {
 } from './engine';
 
 export const MATCH_GRAVITY_INTERVAL_MS = 700 as const;
+export const MAX_SEQUENCE_INDEX = 10_000 as const;
 
 const ZERO_SEED_FALLBACK = 0x9e3779b9;
 const UINT32_RANGE = 0x1_0000_0000;
@@ -114,6 +115,25 @@ export function createMatchCore(seed: number): MatchCoreState {
     human: createPlayer(createEmptyBoard(), currentPiece),
     jev: createPlayer(createEmptyBoard(), currentPiece),
   };
+}
+
+/** Return the deterministic seven-bag item at a zero-based sequence index. */
+export function getPieceAtSequenceIndex(seed: number, index: number): PieceType {
+  if (!Number.isInteger(index) || index < 0 || index > MAX_SEQUENCE_INDEX) {
+    throw new RangeError(`Sequence index must be an integer from 0 to ${MAX_SEQUENCE_INDEX}.`);
+  }
+
+  let randomState = normalizeSeed(seed);
+  let bag: PieceType[] = [];
+  const targetBag = Math.floor(index / PIECE_TYPES.length);
+
+  for (let bagIndex = 0; bagIndex <= targetBag; bagIndex += 1) {
+    const shuffled = shuffleBag(randomState);
+    bag = shuffled.bag;
+    randomState = shuffled.randomState;
+  }
+
+  return bag[index % PIECE_TYPES.length]!;
 }
 
 /** Preview the next shared piece without consuming the current bag or PRNG state. */

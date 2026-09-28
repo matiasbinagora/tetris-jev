@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { createEmptyBoard, type LandingCandidate } from '../game/engine';
+import { createEmptyBoard } from '../game/engine';
+import type { RankedLanding } from '../game/jev-placement';
 import type { JevDecisionResult } from '../game/jev-decision-contract';
 import type { JevDecisionSnapshot } from '../game/jev-decision-session';
 import { JevDecisionPanel, type CompletedDecisionFacts } from './jev-decision-panel';
@@ -12,7 +13,7 @@ function candidate(
   id: string,
   x: number,
   metrics: { lines: number; height: number; holes: number; bumpiness: number },
-): LandingCandidate {
+): RankedLanding {
   return {
     id,
     lockedPiece: { type: 'T', rotation: 0, x, y: 18 },
@@ -24,6 +25,12 @@ function candidate(
       aggregateHeight: metrics.height,
       holes: metrics.holes,
       bumpiness: metrics.bumpiness,
+    },
+    score: 0,
+    followUp: {
+      linesCleared: 1,
+      topOut: false,
+      metrics: { columnHeights: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], aggregateHeight: 16, holes: 2, bumpiness: 4 },
     },
   };
 }
@@ -47,8 +54,10 @@ function facts(withUsage: boolean): CompletedDecisionFacts {
   };
   const snapshot: JevDecisionSnapshot = {
     seed: 123,
+    sequenceIndex: 0,
     board: createEmptyBoard(),
     piece: { type: 'T', rotation: 0, x: 3, y: 0 },
+    nextPiece: 'I',
     candidates,
     requestBody: '{}',
   };
@@ -97,5 +106,11 @@ describe('Jev decision facts panel', () => {
     expect(screen.getByText('Token usage unavailable')).not.toBeNull();
     expect(screen.getByText('Calculated board outcomes')).not.toBeNull();
     expect(screen.queryByText(/because|my reasoning|I chose/i)).toBeNull();
+  });
+
+  it('labels probabilities as preferences among evaluated options and shows next-piece outcomes', () => {
+    render(<JevDecisionPanel facts={facts(true)} />);
+    expect(screen.getByText('Jev preference among evaluated options')).not.toBeNull();
+    expect(screen.getAllByText(/Next piece: 1 line · Height: 16 · Holes: 2 · Bumpiness: 4/).length).toBeGreaterThan(0);
   });
 });

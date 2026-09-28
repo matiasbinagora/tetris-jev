@@ -24,7 +24,7 @@ The engine SHALL include only landing footprints reachable from the active piece
 - **THEN** the system keeps the match paused and exposes a retryable error without changing Jev's board
 
 ### Requirement: Keep Jev credentials server-side
-The browser SHALL call a same-origin server route for Jev decisions. The route SHALL read `JEV_API_KEY` from its server environment and SHALL never return or embed the key in browser-visible responses, assets, or logs. The route SHALL validate the seed, Jev sequence cursor, current and next piece types, board dimensions, shortlist count, and the exact canonical shortlist and landing poses before making one upstream Jev call. The server SHALL compute candidate descriptions itself rather than trusting client-supplied scores or prose.
+The browser SHALL call a same-origin server route for Jev decisions. The route SHALL read `JEV_API_KEY` from its server environment and SHALL never return or embed the key in browser-visible responses, assets, or logs. The route SHALL validate the uint32 seed, Jev sequence cursor (an integer from 0 through 9,999), current and next piece types, board dimensions, shortlist count, and the exact canonical shortlist and landing poses before making one upstream Jev call. The server SHALL compute candidate descriptions itself rather than trusting client-supplied scores or prose.
 
 #### Scenario: Valid decision request
 - **WHEN** the browser submits a structurally valid board, piece, and canonical legal shortlist
