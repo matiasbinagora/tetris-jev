@@ -42,4 +42,4 @@
 - [x] 7.2 Make keyboard controls work during active human play without a board click, return visible play focus after Start/Resume, and preserve editable targets, native controls, and browser shortcuts; verify UI and browser keyboard flows.
 - [x] 7.3 Replace the round barrier with separate cursors into the same seeded seven-bag sequence, independent human gravity and Jev decisions, Jev-only pending/retry, manual pause, and survived-piece win/draw resolution; verify pure lifecycle, stale-response, and end-to-end match scenarios.
 - [x] 7.4 Add an accessible manual divider to resize Jev's board and decision panel with a 70/30 default; verify drag and keyboard adjustments stay within bounds and responsive stacking remains intact.
-- [ ] 7.5 Run the complete lint, unit, end-to-end, type-check, production-build, and strict OpenSpec validation commands; verify the revised flow in Vercel Preview before considering the change ready to archive.
+- [x] 7.5 Run the complete lint, unit, end-to-end, type-check, production-build, and strict OpenSpec validation commands; verify the revised flow in Vercel Preview before considering the change ready to archive.
