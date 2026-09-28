@@ -35,4 +35,10 @@
 - [x] 6.1 Document Vercel Preview and Production environment setup for `JEV_API_KEY` and the Preview-before-Production workflow; verify the README clearly distinguishes local, Preview, and Production configuration.
 - [x] 6.2 Connect the application to a Vercel project after the folder is a Git repository, configure Preview variables, and deploy a Preview build; verify the UI and Jev route work and no API key appears in browser-visible assets or responses.
 - [x] 6.3 Configure Production variables and deploy only after Preview verification; verify the Production game can complete a Jev decision and fails safely when the server credential is unavailable.
-- [ ] 6.4 Run the complete lint, test, type-check, production-build, and OpenSpec validation commands; verify each succeeds before considering the change ready to archive.
+
+## 7. Gameplay revision after Production feedback
+
+- [ ] 7.1 Add pure indexed lookup for the seeded sequence, then build the deterministic at-most-12 Jev shortlist with known-next-piece lookahead, canonical server validation, outcome-rich TypeSafe criteria, and conditional probability labeling; verify fixed board cases retain useful line-clearing options, route tests reject altered shortlists, and a Preview decision remains valid.
+- [ ] 7.2 Make keyboard controls work during active human play without a board click, return visible play focus after Start/Resume, and preserve editable targets, native controls, and browser shortcuts; verify UI and browser keyboard flows.
+- [ ] 7.3 Replace the round barrier with separate cursors into the same seeded seven-bag sequence, independent human gravity and Jev decisions, Jev-only pending/retry, manual pause, and survived-piece win/draw resolution; verify pure lifecycle, stale-response, and end-to-end match scenarios.
+- [ ] 7.4 Run the complete lint, unit, end-to-end, type-check, production-build, and strict OpenSpec validation commands; verify the revised flow in Vercel Preview before considering the change ready to archive.
