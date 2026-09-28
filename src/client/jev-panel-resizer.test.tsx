@@ -33,7 +33,7 @@ describe('Jev panel resizer', () => {
     expect(separator.getAttribute('aria-valuenow')).toBe('70');
     expect(separator.getAttribute('aria-valuemin')).toBe('50');
     expect(separator.getAttribute('aria-valuemax')).toBe('80');
-    expect(container.querySelector('.right-column')?.getAttribute('style')).toContain('70fr 12px 30fr');
+    expect(container.querySelector('.right-column')?.getAttribute('style')).toContain('70fr 24px 30fr');
   });
 
   it('adjusts with arrow keys in the requested direction and clamps at both bounds', () => {

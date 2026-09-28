@@ -6,7 +6,7 @@ const DEFAULT_BOARD_SHARE = 70;
 const MIN_BOARD_SHARE = 50;
 const MAX_BOARD_SHARE = 80;
 const KEYBOARD_STEP = 5;
-const SEPARATOR_SIZE = 12;
+const SEPARATOR_SIZE = 24;
 
 interface DragState {
   pointerId: number;
