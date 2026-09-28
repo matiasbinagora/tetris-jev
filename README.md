@@ -4,9 +4,9 @@ A desktop-first browser match where a human plays Tetris against Jev. Both playe
 
 ## Current status
 
-The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, focused keyboard controls, Jev decision facts panel, Playwright browser-flow coverage, and Vercel environment setup documentation are implemented. The browser shows both boards, starts the shared 700 ms clock, pauses during Jev decisions, accepts keyboard input after the human board receives focus, and retains the last completed Jev selection and calculated outcomes during the human turn. E2E tests cover start, decision success/retry, a human round, pause/resume, restart, and a terminal result with Jev mocked. The Vercel project is connected to GitHub, and its Preview deployment has passed a live match and Jev decision check. Production configuration and deployment remain task 6.3.
+The Next.js App Router foundation, deterministic Tetris engine, shared-match core, pure match-session lifecycle, server-side Jev decision route, decision deadline/retry coordinator, split-screen match view, focused keyboard controls, Jev decision facts panel, Playwright browser-flow coverage, and Vercel environment setup documentation are implemented. The browser shows both boards, starts the shared 700 ms clock, pauses during Jev decisions, accepts keyboard input after the human board receives focus, and retains the last completed Jev selection and calculated outcomes during the human turn. E2E tests cover start, decision success/retry, a human round, pause/resume, restart, and a terminal result with Jev mocked. The Vercel project is connected to GitHub; Preview and Production deployments have both been verified with Jev decisions. Production also fails closed and preserves the round when the server credential is unavailable.
 
-OpenSpec implementation progress is **17 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, 6.1, and 6.2). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
+OpenSpec implementation progress is **18 of 19 tasks complete** (tasks 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, 6.1, 6.2, and 6.3). See [`openspec/changes/play-tetris-against-jev/tasks.md`](openspec/changes/play-tetris-against-jev/tasks.md) for the task list and acceptance checks.
 
 ## Local development
 
@@ -49,13 +49,17 @@ Vercel uses separate environment scopes for Preview and Production. Configure `J
 
 #### Verified Preview deployment
 
-The Vercel project is [`matiasjacob/tetris-jev`](https://vercel.com/matiasjacob/tetris-jev), connected to [`matiasbinagora/tetris-jev`](https://github.com/matiasbinagora/tetris-jev). The verified task 6.2 Preview is [https://tetris-jev-git-feature-task-6-2-vercel-preview-matiasjacob.vercel.app](https://tetris-jev-git-feature-task-6-2-vercel-preview-matiasjacob.vercel.app). `JEV_API_KEY` is configured as a Sensitive Secret for Preview only. A browser session completed a Jev decision successfully, and the key was not exposed in browser assets or the decision response. GitHub pushes and pull requests create Preview deployments; merges to the Production branch create Production deployments. Production configuration and deployment are tracked separately in OpenSpec task 6.3. See [Vercel Git deployments](https://vercel.com/docs/git).
+The Vercel project is [`matiasjacob/tetris-jev`](https://vercel.com/matiasjacob/tetris-jev), connected to [`matiasbinagora/tetris-jev`](https://github.com/matiasbinagora/tetris-jev). The verified task 6.2 Preview is [https://tetris-jev-git-feature-task-6-2-vercel-preview-matiasjacob.vercel.app](https://tetris-jev-git-feature-task-6-2-vercel-preview-matiasjacob.vercel.app). `JEV_API_KEY` is configured as a Sensitive Secret for Preview and Production. A browser session completed a Jev decision in Preview, and the key was not exposed in browser assets or the decision response. GitHub pushes and pull requests create Preview deployments; merges to the Production branch create Production deployments. See [Vercel Git deployments](https://vercel.com/docs/git).
 
 Do not configure or promote Production until Preview has been verified. Vercel applies environment variable changes only to new deployments, so redeploy after changing a value or its environment scope.
 
 #### Production after Preview verification
 
-After Preview passes, return to **Settings → Environment Variables** and add or assign `JEV_API_KEY` for the **Production** environment. Then create a Production deployment from the configured production branch, or redeploy it, so it receives the Production-scoped value. Verify a Jev decision and confirm the key remains absent from browser-visible responses and assets. The actual Production configuration and deployment are tracked separately in OpenSpec task 6.3.
+After Preview passes, configure `JEV_API_KEY` for the **Production** environment and create a new Production deployment so it receives that value. Do not expose the credential in client configuration. If the server credential is unavailable, a Jev decision must fail closed, preserve the round, and allow retry.
+
+#### Verified Production deployment
+
+The Production app is [https://tetris-jev.vercel.app](https://tetris-jev.vercel.app). `JEV_API_KEY` is configured as a Sensitive Secret in Production. The game completed a Jev decision and displayed the returned choice and probabilities. Before adding the Production secret, the live app showed **Retry required** and kept the round unchanged, confirming safe behavior when the server credential is missing. The key remained absent from the browser UI.
 
 For current Vercel dashboard steps and environment behavior, see [Managing Environment Variables](https://vercel.com/docs/environment-variables/managing-environment-variables) and [Environment Variables](https://vercel.com/docs/environment-variables).
 
