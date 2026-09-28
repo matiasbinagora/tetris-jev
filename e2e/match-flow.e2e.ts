@@ -130,3 +130,16 @@ test('restores play focus after Start and Resume and accepts keys away from the 
   await page.getByRole('button', { name: 'Resume' }).click();
   await expect(humanControls).toBeFocused();
 });
+
+test('preserves native Space activation for the Start button', async ({ page }) => {
+  await mockJevDecisionRoute(page, successfulChoice);
+  await page.goto('/');
+
+  const humanControls = page.getByRole('group', { name: 'Human game board controls' });
+  const startButton = page.getByRole('button', { name: /start match/i });
+  await startButton.focus();
+  await page.keyboard.press('Space');
+
+  await expect(humanControls).toBeFocused();
+  await expect(page.getByText('Waiting for you', { exact: true })).toBeVisible();
+});

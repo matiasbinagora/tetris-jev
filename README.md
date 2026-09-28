@@ -211,7 +211,7 @@ At desktop width, [`app/globals.css`](app/globals.css) uses two equal-width colu
 
 ### Keyboard controls
 
-The human board is a focusable keyboard region. Click or tab to the board before using game keys; the match action buttons remain outside this region and keep their native keyboard activation. The visible help below the human board lists the bindings:
+Game keys work during active human play without requiring the board to have focus. Start and Resume return visible focus to the human board. Native buttons retain their keyboard activation, and editable controls, IME composition, and Ctrl/Meta/Alt browser shortcuts are left alone. The visible help below the human board lists the bindings:
 
 | Key | Action |
 | --- | --- |
@@ -222,7 +222,7 @@ The human board is a focusable keyboard region. Click or tab to the board before
 | Space | Hard drop and lock |
 | P | Pause or resume manual play |
 
-Game keys prevent page scrolling while the board has focus. Movement is disabled while the match is paused, a human piece is already locked, or Jev's decision is pending/requires retry. `P` cannot resume a Jev decision pause. Ctrl, Meta, and Alt shortcuts pass through to the browser.
+Handled game keys prevent page scrolling wherever focus is in the app. Movement is disabled while the match is paused, a human piece is already locked, or Jev's decision is pending/requires retry. `P` cannot resume a Jev decision pause.
 
 ## Development workflow
 
