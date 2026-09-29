@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createEmptyBoard, type Cell } from './engine';
 import { createMatchSession, pauseMatchSession, startMatchSession, tickMatchSession } from './match-session';
 import {
-  beginJevDecision, completeJevDecision, failJevDecision, retryJevDecision, resumeCompletedJevDecision,
+  applyJevLanding, beginJevDecision, completeJevDecision, failJevDecision, retryJevDecision, resumeCompletedJevDecision,
   type JevDecisionSession,
 } from './jev-decision-session';
 
@@ -69,7 +69,7 @@ describe('Jev decision coordination', () => {
     expect(failJevDecision(retry, { ...retry.token, decisionId: 'old-match' })).toBe(retry);
   });
 
-  it('locks only the canonical Jev board and resumes without moving the human', () => {
+  it('keeps the selected board unapplied until Jev finishes the landing animation', () => {
     const source = playing();
     source.core.jev.activePiece = { type: 'I', rotation: 0, x: 3, y: 0 };
     const board = mutableBoard(source.core.jev);
@@ -77,20 +77,26 @@ describe('Jev decision coordination', () => {
     const flow = beginJevDecision(source, 'line-clear')!;
     const candidate = flow.snapshot.candidates.find((c) => c.linesCleared === 1)!;
     expect(candidate).toBeDefined();
-    const done = completeJevDecision(flow, flow.token, answer(flow, candidate.id));
+    const accepted = completeJevDecision(flow, flow.token, answer(flow, candidate.id));
+    expect(accepted.status).toBe('animating');
+    expect(accepted.session.phase).toBe('playing');
+    expect(accepted.session.core.jev.board).toEqual(flow.session.core.jev.board);
+    expect(accepted.session.core.jev.sequenceIndex).toBe(flow.snapshot.sequenceIndex);
+    expect(accepted.session.core.jev.survivedPieces).toBe(0);
+    expect(accepted.session.core.jev.activePiece).toEqual(flow.snapshot.piece);
+    expect(accepted.session.core.human).toBe(flow.session.core.human);
+    expect(accepted.result?.selectedCandidate).toBe(candidate);
+    expect(accepted.result?.usage).toEqual({ inputTokens: 0, outputTokens: 12 });
+    expect(accepted.result?.probabilities[flow.snapshot.candidates[0]!.id]).toBe(0.123456789);
+
+    const done = applyJevLanding(accepted);
     expect(done.status).toBe('complete');
-    expect(done.session.phase).toBe('playing');
     expect(done.session.core.jev.board).toEqual(createEmptyBoard());
     expect(done.session.core.jev.lockedThisRound).toBe(false);
     expect(done.session.core.jev.sequenceIndex).toBe(1);
     expect(done.session.core.jev.survivedPieces).toBe(1);
     expect(done.session.core.jev.activePiece?.type).toBe(flow.snapshot.nextPiece);
     expect(done.session.core.human).toBe(flow.session.core.human);
-    expect(done.session.core.jev.sequenceIndex).toBe(1);
-    expect(done.session.core.human).toBe(flow.session.core.human);
-    expect(done.result?.selectedCandidate).toBe(candidate);
-    expect(done.result?.usage).toEqual({ inputTokens: 0, outputTokens: 12 });
-    expect(done.result?.probabilities[flow.snapshot.candidates[0]!.id]).toBe(0.123456789);
     expect(completeJevDecision(done, done.token, answer(flow))).toBe(done);
     expect(failJevDecision(done, done.token)).toBe(done);
     expect(retryJevDecision(done)).toBe(done);
@@ -124,8 +130,10 @@ describe('Jev decision coordination', () => {
     expect(waiting.status).toBe('ready-to-apply');
     expect(waiting.session.core.jev).toEqual(paused.core.jev);
     const resumed = resumeCompletedJevDecision(waiting);
-    expect(resumed.status).toBe('complete');
-    expect(resumed.session.core.jev.sequenceIndex).toBe(1);
+    expect(resumed.status).toBe('animating');
+    expect(resumed.session.phase).toBe('playing');
+    expect(resumed.session.core.jev.sequenceIndex).toBe(0);
+    expect(applyJevLanding(resumed).session.core.jev.sequenceIndex).toBe(1);
   });
 
   it.each(['ready', 'paused', 'finished'] as const)('does not start from %s', (phase) => {

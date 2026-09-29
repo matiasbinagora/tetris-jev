@@ -18,7 +18,7 @@ export interface JevDecisionSession {
   session: MatchSessionState;
   snapshot: JevDecisionSnapshot;
   token: JevAttemptToken;
-  status: 'pending' | 'retry-required' | 'ready-to-apply' | 'complete';
+  status: 'pending' | 'retry-required' | 'ready-to-apply' | 'animating' | 'complete';
   result: JevDecisionResult | null;
 }
 
@@ -87,11 +87,11 @@ export function completeJevDecision(
   if (liveSession.phase === 'paused') {
     return rebased;
   }
-  return applyJevResult(rebased);
+  return { ...rebased, status: 'animating' };
 }
 
-function applyJevResult(state: JevDecisionSession): JevDecisionSession {
-  if (state.status !== 'ready-to-apply' || state.result === null || state.session.phase !== 'playing') return state;
+export function applyJevLanding(state: JevDecisionSession): JevDecisionSession {
+  if (state.status !== 'animating' || state.result === null || state.session.phase !== 'playing') return state;
   const { board, topOut } = state.result.selectedCandidate;
   return {
     ...state,
@@ -103,5 +103,9 @@ function applyJevResult(state: JevDecisionSession): JevDecisionSession {
 /** Apply a response received during manual pause only after the user resumes. */
 export function resumeCompletedJevDecision(state: JevDecisionSession): JevDecisionSession {
   if (state.status !== 'ready-to-apply' || state.session.phase !== 'paused') return state;
-  return applyJevResult({ ...state, session: resumeMatchSession(state.session) });
+  return {
+    ...state,
+    session: resumeMatchSession(state.session),
+    status: 'animating',
+  };
 }

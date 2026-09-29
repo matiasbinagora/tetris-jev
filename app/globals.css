@@ -35,7 +35,7 @@ button { font: inherit; }
 .board-wrap--human { height: min(76vh, 655px); max-height: 100%; }
 .board-wrap--human:focus { outline: 2px solid #f1c09d; outline-offset: 5px; border-radius: 3px; }
 .board-wrap--jev { height: min(48vh, 440px); max-height: 100%; }
-.board { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); grid-template-rows: repeat(20, minmax(0, 1fr)); height: 100%; aspect-ratio: 1 / 2; padding: 5px; gap: 2px; border: 1px solid #59626a; background: #252d35; box-shadow: 0 22px 42px #0007, inset 0 0 0 4px #121820; }
+.board { position: relative; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); grid-template-rows: repeat(20, minmax(0, 1fr)); height: 100%; aspect-ratio: 1 / 2; padding: 5px; gap: 2px; border: 1px solid #59626a; background: #252d35; box-shadow: 0 22px 42px #0007, inset 0 0 0 4px #121820; }
 .board--jev { border-color: #426564; background: #263b3d; }
 .board__cell { min-width: 0; min-height: 0; background: #111820; border: 1px solid #2a333c; }
 .board--jev .board__cell { background: #112125; border-color: #294145; }
@@ -44,6 +44,12 @@ button { font: inherit; }
 .board__cell--z { background: #ed9b9c !important; border-color: #fac2c2 !important; } .board__cell--j { background: #95b9ec !important; border-color: #bed3f1 !important; }
 .board__cell--l { background: #efb17d !important; border-color: #f7cfaa !important; }
 .board__cell--active { box-shadow: inset 0 0 0 2px #ffffff55, 0 0 16px #ffffff22; }
+.board__piece-layer { position: absolute; z-index: 2; inset: 6px; pointer-events: none; }
+.board__piece-cell { position: absolute; width: calc(10% - 1.8px); height: calc(5% - 1.9px); border: 1px solid; box-shadow: inset 0 0 0 2px #ffffff55, 0 0 16px #ffffff22; }
+.board--landing > .board__cell--active { opacity: 0; }
+.board--landing .board__piece-cell { transition: left .3s ease, top .3s ease; }
+.board--landing[data-landing-paused="true"] .board__piece-cell { transition-duration: 0s; }
+@media (prefers-reduced-motion: reduce) { .board--landing .board__piece-cell { transition: none; } }
 .board-caption { display: flex; justify-content: space-between; width: 100%; margin-top: 9px; color: #8e999f; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .area-footer { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 12px; border-top: 1px solid #414751; color: #77818d; font-size: 11px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
 .control-help { max-width: 100%; margin: 0; color: #aab4bc; font-size: clamp(8px, .72vw, 10px); font-weight: 500; letter-spacing: 0; line-height: 1.6; text-transform: none; }

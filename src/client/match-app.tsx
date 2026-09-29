@@ -5,6 +5,7 @@ import { requestJevDecision } from './jev-decision-api';
 import { BoardView } from './board-view';
 import { handleGameKey } from './game-keyboard';
 import {
+  applyJevLanding,
   beginJevDecision,
   completeJevDecision,
   failJevDecision,
@@ -21,6 +22,7 @@ import {
   tickMatchSession,
   type MatchSessionState,
 } from '../game/match-session';
+import type { ActivePiece } from '../game/engine';
 import { applyHumanGameAction } from '../game/human-controls';
 import { JEV_DECISION_CADENCE_MS, MATCH_GRAVITY_INTERVAL_MS, getPlayerPiece, peekNextPlayerPiece } from '../game/match';
 import { JevDecisionPanel, type CompletedDecisionFacts } from './jev-decision-panel';
@@ -33,6 +35,7 @@ interface ViewState {
   matchId: string;
   decisionSetupFailed: boolean;
   lastDecision: CompletedDecisionFacts | null;
+  landingStage: 1 | 2 | null;
 }
 
 const INITIAL_SEED = 20260927;
@@ -63,7 +66,43 @@ function beginJevIfActive(
     matchId,
     decisionSetupFailed: needsDecision && decision === null,
     lastDecision,
+    landingStage: null,
   };
+}
+
+function finishJevLanding(state: ViewState, token: { decisionId: string; attempt: number }): ViewState {
+  const decision = state.decision;
+  if (
+    state.session.phase !== 'playing' ||
+    decision?.status !== 'animating' ||
+    decision.token.decisionId !== token.decisionId ||
+    decision.token.attempt !== token.attempt
+  ) return state;
+
+  const landed = applyJevLanding(decision);
+  if (landed.status !== 'complete' || landed.result === null) return state;
+  return {
+    ...state,
+    session: landed.session,
+    decision: null,
+    landingStage: null,
+    completedDecisions: state.completedDecisions + 1,
+    lastDecision: { snapshot: decision.snapshot, result: landed.result },
+  };
+}
+
+function midpointPiece(start: ActivePiece, landing: ActivePiece): ActivePiece {
+  return {
+    ...start,
+    x: Math.round((start.x + landing.x) / 2),
+    y: Math.round((start.y + landing.y) / 2),
+  };
+}
+
+function presentationPiece(decision: JevDecisionSession | null, stage: 1 | 2 | null): ActivePiece | null {
+  if (decision?.status !== 'animating' || decision.result === null || stage === null) return null;
+  const landing = decision.result.selectedCandidate.lockedPiece;
+  return stage === 1 ? midpointPiece(decision.snapshot.piece, landing) : landing;
 }
 
 function statusFor(state: ViewState): { name: string; message: string } {
@@ -98,6 +137,9 @@ function statusFor(state: ViewState): { name: string; message: string } {
   if (state.decision?.status === 'ready-to-apply') {
     return { name: 'Jev ready', message: 'Jev’s choice will apply when you resume the match.' };
   }
+  if (state.decision?.status === 'animating') {
+    return { name: 'Jev landing', message: 'Jev is showing the selected landing.' };
+  }
   switch (state.session.phase) {
     case 'ready':
       return { name: 'Ready', message: 'The same piece sequence is prepared for both boards.' };
@@ -115,11 +157,13 @@ export function MatchApp() {
     matchId: 'ready',
     decisionSetupFailed: false,
     lastDecision: null,
+    landingStage: null,
   }));
 
   const decision = state.decision;
   const decisionId = decision?.token.decisionId;
   const attempt = decision?.token.attempt;
+  const decisionToken = decision?.token ?? null;
   const decisionStatus = decision?.status;
 
   useEffect(() => {
@@ -138,6 +182,9 @@ export function MatchApp() {
         const next = response.ok
           ? completeJevDecision(current.decision, token, response.result, current.session)
           : failJevDecision(current.decision, token);
+        if (next.status === 'animating') {
+          return { ...current, decision: next, landingStage: 1 };
+        }
         if (next.status !== 'complete') {
           return { ...current, decision: next };
         }
@@ -147,6 +194,7 @@ export function MatchApp() {
           ...current,
           session: next.session,
           decision: null,
+          landingStage: null,
           completedDecisions: current.completedDecisions + 1,
           lastDecision: { snapshot: current.decision.snapshot, result: next.result },
         };
@@ -159,12 +207,39 @@ export function MatchApp() {
   }, [decisionId, attempt, decisionStatus]);
 
   useEffect(() => {
+    if (decisionStatus !== 'animating' || !decisionToken || state.session.phase !== 'playing' || state.landingStage === null) return;
+
+    const token = decisionToken;
+    const stage = state.landingStage;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      const timeout = window.setTimeout(() => setState((current) => finishJevLanding(current, token)), 0);
+      return () => window.clearTimeout(timeout);
+    }
+
+    const timeout = window.setTimeout(() => {
+      setState((current) => {
+        if (
+          current.session.phase !== 'playing' ||
+          current.matchId !== state.matchId ||
+          current.decision?.status !== 'animating' ||
+          current.decision.token.decisionId !== token.decisionId ||
+          current.decision.token.attempt !== token.attempt ||
+          current.landingStage !== stage
+        ) return current;
+        if (stage === 1) return { ...current, landingStage: 2 };
+        return finishJevLanding(current, token);
+      });
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [decisionId, attempt, decisionStatus, decisionToken, state.session.phase, state.landingStage, state.matchId]);
+
+  useEffect(() => {
     if (state.session.phase !== 'playing') return;
     const interval = window.setInterval(() => {
       setState((current) => {
         if (current.session.phase !== 'playing') return current;
         const session = tickMatchSession(current.session);
-        return { ...current, session, ...(session.phase === 'finished' ? { decision: null } : {}) };
+        return { ...current, session, ...(session.phase === 'finished' ? { decision: null, landingStage: null } : {}) };
       });
     }, MATCH_GRAVITY_INTERVAL_MS);
     return () => window.clearInterval(interval);
@@ -223,7 +298,7 @@ export function MatchApp() {
           if (current.session.phase !== 'playing') return current;
           const session = applyHumanGameAction(current.session, action);
           return session === current.session ? current : {
-            ...current, session, ...(session.phase === 'finished' ? { decision: null } : {}),
+            ...current, session, ...(session.phase === 'finished' ? { decision: null, landingStage: null } : {}),
           };
         }),
         () => setState((current) => {
@@ -235,9 +310,8 @@ export function MatchApp() {
           if (session === current.session) return current;
           if (session.phase === 'playing' && current.decision?.status === 'ready-to-apply') {
             const resumed = resumeCompletedJevDecision({ ...current.decision, session: current.session });
-            return { ...current, session: resumed.session, decision: null,
-              completedDecisions: current.completedDecisions + 1,
-              lastDecision: resumed.result ? { snapshot: resumed.snapshot, result: resumed.result } : current.lastDecision };
+            return { ...current, session: resumed.session, decision: resumed,
+              landingStage: resumed.status === 'animating' ? 1 : current.landingStage };
           }
           return { ...current, session };
         }),
@@ -312,7 +386,15 @@ export function MatchApp() {
           </div>
           <div className="jev-content">
             <div className="board-wrap board-wrap--jev">
-              <BoardView board={core.jev.board} activePiece={core.jev.activePiece} label="Jev Tetris board, 10 columns by 20 visible rows" player="jev" />
+              <BoardView
+                board={core.jev.board}
+                activePiece={core.jev.activePiece}
+                presentationPiece={presentationPiece(state.decision, state.landingStage)}
+                landingStage={state.landingStage}
+                paused={state.session.phase === 'paused'}
+                label="Jev Tetris board, 10 columns by 20 visible rows"
+                player="jev"
+              />
               <div className="board-caption"><span>Jev</span><span>10 × 20</span></div>
             </div>
             <div className="jev-side-note">
@@ -355,9 +437,8 @@ export function MatchApp() {
                     if (session === current.session) return current;
                     if (current.decision?.status === 'ready-to-apply') {
                       const resumed = resumeCompletedJevDecision({ ...current.decision, session: current.session });
-                      return { ...current, session: resumed.session, decision: null,
-                        completedDecisions: current.completedDecisions + 1,
-                        lastDecision: resumed.result ? { snapshot: resumed.snapshot, result: resumed.result } : current.lastDecision };
+                      return { ...current, session: resumed.session, decision: resumed,
+                        landingStage: resumed.status === 'animating' ? 1 : current.landingStage };
                     }
                     return { ...current, session };
                   });
